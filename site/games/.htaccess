@@ -1,0 +1,4 @@
+AuthGroupFile /dev/null
+AuthUserFile /home/12/a1/0e/capsulen/domains/capsule.net.tr/.htpasswd/public_html/games/.htpasswd
+AuthName "GamesUsers"
+ErrorDocument 401 "Unauthorized Access"
