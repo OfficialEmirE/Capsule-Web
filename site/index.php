@@ -38,18 +38,29 @@
 
 <body class="bg-gray-50 min-h-screen">
     <div class="container mx-auto px-4 py-8">
-        <header class="mb-8 flex items-center justify-between">
+        <header class="mb-8 flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
             <div class="flex items-center space-x-4">
                 <img src="CapsuleLogo.png" alt="Capsule Logo" class="h-14">
             </div>
-            <nav class="flex space-x-4">
-                <a href="index.php" class="text-gray-600 hover:text-indigo-600 font-medium">Ana Sayfa</a>
-                <a href="studio/" class="text-gray-600 hover:text-indigo-600 font-medium">Studio</a>
-                <a href="https://capsule." class="text-gray-600 hover:text-indigo-600 font-medium">Status</a>
 
-                <a href="https://discord.gg/jMmZZjQxk8" target="_blank"
-                    class="text-gray-600 hover:text-indigo-600 font-medium">Discord</a>
-            </nav>
+            <div class="flex flex-col gap-3 md:flex-row md:items-center md:gap-6 w-full md:w-auto">
+                <nav class="flex flex-wrap items-center gap-4">
+                    <a href="index.php" class="text-gray-600 hover:text-indigo-600 font-medium">Ana Sayfa</a>
+                    <a href="studio/" class="text-gray-600 hover:text-indigo-600 font-medium">Studio</a>
+                    <a href="https://capsule." class="text-gray-600 hover:text-indigo-600 font-medium">Status</a>
+                    <a href="https://discord.gg/jMmZZjQxk8" target="_blank"
+                        class="text-gray-600 hover:text-indigo-600 font-medium">Discord</a>
+                </nav>
+
+                <div id="auth-buttons" class="flex items-center gap-2 md:ml-6 md:justify-end">
+                    <a href="login/login.php?href=index.php"
+                        class="px-4 py-2 text-sm font-semibold text-indigo-600 border border-indigo-600 rounded hover:bg-indigo-50 transition">Giriş
+                        Yap</a>
+                    <a href="login/register.php?href=index.php"
+                        class="px-4 py-2 text-sm font-semibold text-white bg-indigo-600 rounded hover:bg-indigo-700 transition">Kayıt
+                        Ol</a>
+                </div>
+            </div>
         </header>
 
         <!-- Yükleme durumu -->
@@ -77,6 +88,26 @@
 
     <script>
         const API_URL = 'api/v1/games/';
+
+        function updateAuthButtons() {
+            const authButtons = document.getElementById('auth-buttons');
+            if (!authButtons) return;
+
+            const cookieString = document.cookie || '';
+            const isLoggedIn = cookieString.includes('capsule_logged=true');
+            const usernameMatch = cookieString.match(/(?:^|; )capsule_username=([^;]+)/);
+            const username = usernameMatch ? decodeURIComponent(usernameMatch[1]) : '';
+
+            if (isLoggedIn) {
+                const profileLink = username ? `profile/?username=${encodeURIComponent(username)}` : 'studio/';
+                authButtons.innerHTML = `
+                    <a href="${profileLink}"
+                        class="px-4 py-2 text-sm font-semibold text-white bg-green-600 rounded hover:bg-green-700 transition">
+                        ${username ? `${username} (Profil)` : 'Panele Git'}
+                    </a>
+                `;
+            }
+        }
 
         async function fetchGames() {
             try {
@@ -185,7 +216,10 @@
         }
 
         // Uygulamayı başlat
-        document.addEventListener('DOMContentLoaded', init);
+        document.addEventListener('DOMContentLoaded', () => {
+            updateAuthButtons();
+            init();
+        });
     </script>
 </body>
 
