@@ -1,2 +1,2 @@
 <?php
-exit("no");
+die("Access Error");
