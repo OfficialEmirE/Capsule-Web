@@ -18,12 +18,12 @@
     <div class="container mx-auto px-4 py-8">
         <header class="mb-8 flex items-center justify-between">
             <div class="flex items-center space-x-4">
-                <img src="CapsuleLogo.png" alt="Capsule Logo" class="h-14">
+                <img src="../CapsuleLogo.png" alt="Capsule Logo" class="h-14">
             </div>
             <nav class="flex space-x-4">
-                <a href="index.php" class="text-gray-600 hover:text-indigo-600 font-medium">Ana Sayfa</a>
-                <a href="studio/" class="text-gray-600 hover:text-indigo-600 font-medium">Studio</a>
-                <a href="status.php" class="text-gray-600 hover:text-indigo-600 font-medium">Status</a>
+                <a href="../index.php" class="text-gray-600 hover:text-indigo-600 font-medium">Ana Sayfa</a>
+                <a href="../studio/" class="text-gray-600 hover:text-indigo-600 font-medium">Studio</a>
+                <a href="../status.php" class="text-gray-600 hover:text-indigo-600 font-medium">Status</a>
 
                 <a href="https://discord.gg/sqFCrgeUJg" target="_blank"
                     class="text-gray-600 hover:text-indigo-600 font-medium">Discord</a>

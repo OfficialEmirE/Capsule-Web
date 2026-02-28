@@ -46,7 +46,6 @@
 
         const jsonData = {
             "color": "" + (color),
-            "faceURL": "http://capsule.net.tr/api/v1/avatar/avatarurl.php?type=face",
             "avatars": []
         }
 
