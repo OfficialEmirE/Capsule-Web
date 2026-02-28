@@ -89,6 +89,13 @@
     <script>
         const API_URL = 'api/v1/games/';
 
+        function clearAuthCookies() {
+            const cookieNames = ['capsule_user', 'capsule_username', 'capsule_logged'];
+            cookieNames.forEach((cookieName) => {
+                document.cookie = `${cookieName}=; expires=Thu, 01 Jan 1970 00:00:00 GMT; path=/`;
+            });
+        }
+
         function updateAuthButtons() {
             const authButtons = document.getElementById('auth-buttons');
             if (!authButtons) return;
@@ -101,11 +108,60 @@
             if (isLoggedIn) {
                 const profileLink = username ? `profile/?username=${encodeURIComponent(username)}` : 'studio/';
                 authButtons.innerHTML = `
-                    <a href="${profileLink}"
-                        class="px-4 py-2 text-sm font-semibold text-white bg-green-600 rounded hover:bg-green-700 transition">
-                        ${username ? `${username} (Profil)` : 'Panele Git'}
-                    </a>
+                    <div id="account-menu" class="relative">
+                        <button id="account-menu-button" type="button"
+                            class="px-4 py-2 text-sm font-semibold text-white bg-green-600 rounded hover:bg-green-700 transition focus:outline-none">
+                            ${username ? username : 'Hesabım'}
+                        </button>
+
+                        <div id="account-menu-dropdown"
+                            class="hidden absolute right-0 mt-2 w-48 bg-white border border-gray-200 rounded-lg shadow-lg overflow-hidden z-50">
+                            <a href="account/" class="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 transition">
+                                Hesap Ayarları
+                            </a>
+                            <a href="${profileLink}" class="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 transition">
+                                Profil
+                            </a>
+                            <button id="logout-button" type="button"
+                                class="w-full text-left px-4 py-2 text-sm text-red-600 hover:bg-red-50 transition">
+                                Oturumdan Çık
+                            </button>
+                        </div>
+                    </div>
                 `;
+
+                const accountMenu = document.getElementById('account-menu');
+                const accountMenuButton = document.getElementById('account-menu-button');
+                const accountMenuDropdown = document.getElementById('account-menu-dropdown');
+                const logoutButton = document.getElementById('logout-button');
+
+                if (!accountMenu || !accountMenuButton || !accountMenuDropdown || !logoutButton) return;
+
+                const closeMenu = () => {
+                    accountMenuDropdown.classList.add('hidden');
+                };
+
+                accountMenuButton.addEventListener('click', (event) => {
+                    event.stopPropagation();
+                    accountMenuDropdown.classList.toggle('hidden');
+                });
+
+                document.addEventListener('click', (event) => {
+                    if (!accountMenu.contains(event.target)) {
+                        closeMenu();
+                    }
+                });
+
+                document.addEventListener('keydown', (event) => {
+                    if (event.key === 'Escape') {
+                        closeMenu();
+                    }
+                });
+
+                logoutButton.addEventListener('click', () => {
+                    clearAuthCookies();
+                    window.location.href = 'index.php';
+                });
             }
         }
 

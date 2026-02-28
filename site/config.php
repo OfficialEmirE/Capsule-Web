@@ -11,5 +11,5 @@ return [
     'maintenance_message' => 'Capsule şu anlık erişimi kapanmıştır!',
 
     'announcement_mode' => true,
-    'announcement_message' => 'Capsule Sitesi Yeniden Yazılacak!',
+    'announcement_message' => 'Capsule Apilerde Sorun Yaşanıyor! Rahatsızlık İçin Özür Dileriz.',
 ];
