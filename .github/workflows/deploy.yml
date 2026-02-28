@@ -23,8 +23,10 @@ jobs:
         run: |
           lftp -c "
           set ftp:ssl-allow no
+          set ftp:ssl-force false
+          set ftp:ssl-protect-data false
           set ssl:verify-certificate no
-          open -u $FTP_USERNAME,$FTP_PASSWORD $FTP_SERVER
+          open -u $FTP_USERNAME,$FTP_PASSWORD ftp://$FTP_SERVER
           mirror -R --verbose ./site/ ./domains/capsule.net.tr/public_html/
           bye
           "
