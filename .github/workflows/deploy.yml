@@ -12,11 +12,17 @@ jobs:
       - name: 🚚 Get latest code
         uses: actions/checkout@v4
 
-      - name: 📂 Sync files to FTP
-        uses: SamKirkland/FTP-Deploy-Action@v4.3.5
-        with:
-          server: ${{ secrets.FTP_SERVER }}
-          username: ${{ secrets.FTP_USERNAME }}
-          password: ${{ secrets.FTP_PASSWORD }}
-          local-dir: ./site/ # Sadece bu klasörün içeriğini gönderir
-          server-dir: ./domains/capsule.net.tr/public_html/ # Sunucudaki hedef klasör (değiştirebilirsin)
+      - name: 🔧 Install lftp
+        run: sudo apt-get update && sudo apt-get install -y lftp
+
+      - name: 📂 Upload files to FTP and disconnect
+        env:
+          FTP_SERVER: ${{ secrets.FTP_SERVER }}
+          FTP_USERNAME: ${{ secrets.FTP_USERNAME }}
+          FTP_PASSWORD: ${{ secrets.FTP_PASSWORD }}
+        run: |
+          lftp -c "
+          open -u $FTP_USERNAME,$FTP_PASSWORD $FTP_SERVER
+          mirror -R --verbose ./site/ ./domains/capsule.net.tr/public_html/
+          bye
+          "
