@@ -1,7 +1,7 @@
 <?php
 return [
     // Veritabanı ayarları
-    'db_host' => 'capsule.net.tr',
+    'db_host' => 'localhost',
     'db_name' => 'capsulen_db',
     'db_user' => 'capsulen_db',
     'db_pass' => 'a3NptHVQdrgMEArnJmXb',
