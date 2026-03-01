@@ -1,10 +1,10 @@
 <?php
 return [
     // Veritabanı ayarları
-    'db_host' => 'capsule.net.tr',
-    'db_name' => 'capsulen_db',
-    'db_user' => 'capsulen_db',
-    'db_pass' => '5rHrx2mdTRspHSE4mkU6',
+    'db_host' => 'sql211.infinityfree.com',
+    'db_name' => 'if0_41197595_capsulen_db',
+    'db_user' => 'if0_41197595',
+    'db_pass' => '4EHTld5bjg',
 
     'maintenance_mode' => false, // false yaparsan bakım modu kapanır
     'maintenance_name' => 'Siteye Erişiminiz Yok!',
