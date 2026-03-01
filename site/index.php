@@ -47,8 +47,8 @@
                 <nav class="flex flex-wrap items-center gap-4">
                     <a href="index.php" class="text-gray-600 hover:text-indigo-600 font-medium">Ana Sayfa</a>
                     <a href="studio/" class="text-gray-600 hover:text-indigo-600 font-medium">Studio</a>
-                    <a href="https://capsule.net.tr" class="text-gray-600 hover:text-indigo-600 font-medium">Status</a>
-                    <a href="https://discord.gg/jMmZZjQxk8" target="_blank"
+                    <a href="https://capsule.instatus.com/" class="text-gray-600 hover:text-indigo-600 font-medium">Status</a>
+                    <a href="https://discord.gg/J4arkFaBnf" target="_blank"
                         class="text-gray-600 hover:text-indigo-600 font-medium">Discord</a>
                 </nav>
 
