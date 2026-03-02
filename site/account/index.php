@@ -65,14 +65,14 @@
                     <div>
                         <p class="text-gray-500">Profil</p>
                         <a id="profile-link" href="../profile/"
-                            class="inline-block mt-1 text-indigo-600 hover:text-indigo-700 font-medium">Profili Gor</a>
+                            class="inline-block mt-1 text-indigo-600 hover:text-indigo-700 font-medium">Profili Gör</a>
                     </div>
                 </div>
             </section>
 
             <section class="settings-card bg-white rounded-lg p-6 shadow-sm lg:col-span-2">
-                <h2 class="text-lg font-semibold text-gray-800 mb-1">Avatar Ayari</h2>
-                <p class="text-sm text-gray-500 mb-5">Renk ve yuz URL degerlerini guncelleyebilirsin.</p>
+                <h2 class="text-lg font-semibold text-gray-800 mb-1">Avatar Ayarı</h2>
+                <p class="text-sm text-gray-500 mb-5">Renk değerini guncelleyebilirsin.</p>
 
                 <div class="flex flex-col md:flex-row gap-6">
                     <div class="md:w-48 flex-shrink-0">
@@ -89,20 +89,6 @@
                                 Rengi</label>
                             <input id="avatar-color" type="color"
                                 class="h-10 w-24 p-1 border border-gray-300 rounded cursor-pointer">
-                        </div>
-
-                        <div>
-                            <label for="avatar-face-url" class="block text-sm font-medium text-gray-700 mb-1">Yuz URL
-                                (opsiyonel)</label>
-                            <input id="avatar-face-url" type="url" placeholder="https://..."
-                                class="w-full px-3 py-2 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-indigo-500">
-                        </div>
-
-                        <div>
-                            <label for="avatar-layers" class="block text-sm font-medium text-gray-700 mb-1">Katman
-                                URL'leri (satir satir)</label>
-                            <textarea id="avatar-layers" rows="3" placeholder="https://.../layer1.png"
-                                class="w-full px-3 py-2 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-indigo-500"></textarea>
                         </div>
 
                         <button id="avatar-save-button" type="submit"
@@ -152,8 +138,6 @@
             previewFace: document.getElementById('avatar-face-preview'),
             avatarForm: document.getElementById('avatar-form'),
             avatarColor: document.getElementById('avatar-color'),
-            avatarFaceUrl: document.getElementById('avatar-face-url'),
-            avatarLayers: document.getElementById('avatar-layers'),
             avatarSaveButton: document.getElementById('avatar-save-button'),
             usernameForm: document.getElementById('username-form'),
             deleteAccountButton: document.getElementById('delete-account-button')
@@ -222,8 +206,14 @@
 
         function renderAvatarPreview() {
             const color = normalizeColor(dom.avatarColor.value);
-            const faceURL = dom.avatarFaceUrl.value.trim();
-            dom.preview.style.backgroundColor = color;
+            const faceApiURL = "https://ramazanenescik04.github.io/capsule-character-generator/generate-face.js";
+
+            import(faceApiURL).then((module) => {
+                const faceURL = module.generateFace(color);
+                updatePreview(faceURL);
+            }).catch(() => {
+                updatePreview('');
+            });
 
             if (faceURL) {
                 dom.previewFace.src = faceURL;
@@ -233,6 +223,17 @@
                 dom.previewFace.classList.add('hidden');
             }
         }
+
+        function updatePreview(faceURL) {
+            dom.preview.style.backgroundColor = normalizeColor(dom.avatarColor.value);
+            if (faceURL) {
+                dom.previewFace.src = faceURL;
+                dom.previewFace.classList.remove('hidden');
+            } else {
+                dom.previewFace.src = '';
+                dom.previewFace.classList.add('hidden');
+            }
+        }   
 
         function updateAuthButtons() {
             if (!dom.authButtons) return;
@@ -353,8 +354,6 @@
             }
 
             dom.avatarColor.value = state.avatarData.color;
-            dom.avatarFaceUrl.value = state.avatarData.faceURL || '';
-            dom.avatarLayers.value = (state.avatarData.avatars || []).join('\n');
             renderAvatarPreview();
         }
 
@@ -401,7 +400,6 @@
 
         function bindStaticActions() {
             dom.avatarColor.addEventListener('input', renderAvatarPreview);
-            dom.avatarFaceUrl.addEventListener('input', renderAvatarPreview);
             dom.avatarForm.addEventListener('submit', saveAvatar);
 
             dom.usernameForm.addEventListener('submit', (event) => {
@@ -415,6 +413,12 @@
         }
 
         async function initPage() {
+            import('../login/cookiemanager.js').then((module) => {
+                if (!module.isCookieValid('capsule_logged')) {
+                    window.location.href = `../login/login.php?href=${encodeURIComponent(window.location.href)}`;
+                }
+            });
+
             updateAuthButtons();
             bindStaticActions();
 
