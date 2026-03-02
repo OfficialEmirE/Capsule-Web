@@ -39,6 +39,7 @@
 
         .layout {
             min-height: 100vh;
+            height: 100vh;
             display: grid;
             grid-template-rows: auto 1fr;
         }
@@ -56,10 +57,19 @@
             z-index: 40;
         }
 
+        .top-left {
+            display: flex;
+            align-items: center;
+            gap: 14px;
+            min-width: 0;
+            flex: 1;
+        }
+
         .brand {
             display: inline-flex;
             align-items: center;
             height: clamp(36px, 4.1vw, 52px);
+            flex-shrink: 0;
         }
 
         .brand img {
@@ -73,8 +83,36 @@
             display: flex;
             align-items: center;
             gap: clamp(8px, 1.5vw, 14px);
-            flex-wrap: wrap;
             justify-content: flex-end;
+            flex-shrink: 0;
+        }
+
+        .search-box {
+            position: relative;
+            width: min(520px, 100%);
+        }
+
+        .search-box input {
+            width: 100%;
+            height: 38px;
+            border: 1px solid var(--line);
+            border-radius: 999px;
+            padding: 0 14px 0 38px;
+            font-size: 14px;
+            color: var(--text);
+            background: #f8f8f8;
+            outline: none;
+            cursor: default;
+        }
+
+        .search-box svg {
+            position: absolute;
+            width: 16px;
+            height: 16px;
+            left: 14px;
+            top: 50%;
+            transform: translateY(-50%);
+            color: var(--muted);
         }
 
         .chip {
@@ -107,10 +145,89 @@
             font-size: 16px;
         }
 
+        .account-menu {
+            position: relative;
+        }
+
+        .account-button {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            border: 1px solid var(--line);
+            background: #ffffff;
+            border-radius: 999px;
+            padding: 4px 10px 4px 4px;
+            cursor: pointer;
+        }
+
+        .account-avatar {
+            width: 30px;
+            height: 30px;
+            border-radius: 50%;
+            object-fit: cover;
+            border: 1px solid var(--line);
+        }
+
+        .account-name {
+            font-size: 14px;
+            font-weight: 700;
+            color: var(--text);
+            max-width: 140px;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        .account-arrow {
+            color: var(--muted);
+            font-size: 12px;
+            line-height: 1;
+        }
+
+        .dropdown {
+            position: absolute;
+            right: 0;
+            top: calc(100% + 8px);
+            min-width: 190px;
+            background: #fff;
+            border: 1px solid var(--line);
+            border-radius: 12px;
+            box-shadow: 0 10px 25px rgba(0, 0, 0, 0.08);
+            padding: 6px;
+            display: none;
+            z-index: 60;
+        }
+
+        .dropdown.show {
+            display: block;
+        }
+
+        .dropdown a,
+        .dropdown button {
+            width: 100%;
+            display: block;
+            text-align: left;
+            border: 0;
+            background: transparent;
+            text-decoration: none;
+            color: var(--text);
+            font-size: 14px;
+            font-weight: 700;
+            border-radius: 8px;
+            padding: 9px 10px;
+            cursor: pointer;
+        }
+
+        .dropdown a:hover,
+        .dropdown button:hover {
+            background: #f3f3f3;
+        }
+
         .body {
             display: grid;
             grid-template-columns: clamp(190px, 20vw, 244px) minmax(0, 1fr);
             min-height: 0;
+            overflow: hidden;
         }
 
         .sidebar {
@@ -121,11 +238,18 @@
             justify-content: space-between;
             gap: 26px;
             background: #fafafa;
+            height: 100%;
+            min-height: 0;
         }
 
         .nav-group {
             display: grid;
             gap: 6px;
+        }
+
+        .nav-group.bottom {
+            border-top: 1px solid var(--line);
+            padding-top: 12px;
         }
 
         .sidebar a {
@@ -148,6 +272,7 @@
         .content {
             padding: clamp(14px, 2.2vw, 24px);
             overflow-y: auto;
+            min-height: 0;
         }
 
         .page-title {
@@ -339,6 +464,14 @@
                 width: 100%;
             }
 
+            .top-left {
+                width: 100%;
+            }
+
+            .search-box {
+                flex: 1;
+            }
+
             .chip.username {
                 max-width: 100%;
             }
@@ -348,15 +481,32 @@
 <body>
     <main class="layout">
         <header class="topbar">
-            <a class="brand" href="index.php" aria-label="Capsule ana sayfa">
-                <img src="CapsuleLogo.png" alt="Capsule Logo" id="c-icon">
-            </a>
+            <div class="top-left">
+                <a class="brand" href="index.php" aria-label="Capsule ana sayfa">
+                    <img src="CapsuleLogo.png" alt="Capsule Logo" id="c-icon">
+                </a>
+                <label class="search-box" aria-label="Arama kutusu">
+                    <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                        <circle cx="11" cy="11" r="8" stroke="currentColor" stroke-width="2"></circle>
+                        <line x1="21" y1="21" x2="16.65" y2="16.65" stroke="currentColor" stroke-width="2"></line>
+                    </svg>
+                    <input type="text" placeholder="Ara..." disabled>
+                </label>
+            </div>
 
             <div class="top-right">
-                <span class="chip">money</span>
-                <span class="chip icon-chip" aria-hidden="true">S</span>
-                <span class="chip username" id="username-chip">username</span>
-                <span class="chip avatar-chip" aria-hidden="true">U</span>
+                <div class="account-menu" id="account-menu-root">
+                    <button class="account-button" id="account-button" type="button" aria-haspopup="true" aria-expanded="false">
+                        <img class="account-avatar" id="user-avatar" src="https://ui-avatars.com/api/?name=User&background=f3f3f3&color=111111" alt="Kullanici avatari">
+                        <span class="account-name" id="username-chip">username</span>
+                        <span class="account-arrow" aria-hidden="true">▼</span>
+                    </button>
+                    <div class="dropdown" id="account-dropdown">
+                        <a href="account/">Hesap Ayarlari</a>
+                        <a href="profile/avatar.php">Hesap Degistir</a>
+                        <button id="logout-button" type="button">Oturumdan Cik</button>
+                    </div>
+                </div>
             </div>
         </header>
 
@@ -364,14 +514,14 @@
             <aside class="sidebar" aria-label="Yan menu">
                 <nav class="nav-group">
                     <a href="index.php" class="active">Ana Sayfa</a>
-                    <a href="games/">Populer</a>
+                    <a href="games/">Popüler</a>
                     <a href="profile/avatar.php">Avatar</a>
                     <a href="studio/">Pazar</a>
                 </nav>
 
                 <nav class="nav-group bottom">
                     <a href="account/">Ayarlar</a>
-                    <a href="studio/">Olustur</a>
+                    <a href="studio/">Oluştur</a>
                     <a href="https://discord.gg/J4arkFaBnf" target="_blank" rel="noopener">Destek</a>
                 </nav>
             </aside>
@@ -379,15 +529,10 @@
             <section class="content">
                 <h1 class="page-title">Ana Sayfa</h1>
 
-                <div id="status" class="status">Oyunlar yukleniyor...</div>
+                <div id="status" class="status">Oyunlar yükleniyor...</div>
 
                 <div class="section-head">
-                    <h2>Devam Et</h2>
-                </div>
-                <div id="continue-grid" class="cards"></div>
-
-                <div class="section-head">
-                    <h2>Onerilenler</h2>
+                    <h2>Önerilenler</h2>
                 </div>
                 <div id="recommended-grid" class="cards"></div>
             </section>
@@ -397,10 +542,14 @@
     <script>
         const API_URL = "api/v1/games/";
 
-        const continueGrid = document.getElementById("continue-grid");
         const recommendedGrid = document.getElementById("recommended-grid");
         const statusBox = document.getElementById("status");
         const usernameChip = document.getElementById("username-chip");
+        const userAvatar = document.getElementById("user-avatar");
+        const accountMenuRoot = document.getElementById("account-menu-root");
+        const accountButton = document.getElementById("account-button");
+        const accountDropdown = document.getElementById("account-dropdown");
+        const logoutButton = document.getElementById("logout-button");
 
         function getCookie(name) {
             const escaped = name.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
@@ -457,17 +606,43 @@
             return payload.data;
         }
 
+        function closeAccountMenu() {
+            accountDropdown.classList.remove("show");
+            accountButton.setAttribute("aria-expanded", "false");
+        }
+
+        function setupAccountMenu() {
+            accountButton.addEventListener("click", (event) => {
+                event.stopPropagation();
+                const isOpen = accountDropdown.classList.toggle("show");
+                accountButton.setAttribute("aria-expanded", String(isOpen));
+            });
+
+            document.addEventListener("click", (event) => {
+                if (!accountMenuRoot.contains(event.target)) {
+                    closeAccountMenu();
+                }
+            });
+
+            document.addEventListener("keydown", (event) => {
+                if (event.key === "Escape") {
+                    closeAccountMenu();
+                }
+            });
+
+            logoutButton.addEventListener("click", () => {
+                ["capsule_user", "capsule_username", "capsule_logged"].forEach((cookieName) => {
+                    document.cookie = `${cookieName}=; expires=Thu, 01 Jan 1970 00:00:00 GMT; path=/`;
+                });
+                window.location.href = "index.php";
+            });
+        }
+
         function renderGames(games) {
-            const continueGames = games.slice(0, 3);
-            const recommendedGames = games.slice(3, 12);
+            const recommendedGames = games.slice(0, 12);
 
-            continueGrid.innerHTML = continueGames.length
-                ? continueGames.map(createGameCard).join("")
-                : `<div class="status">Devam Et bolumunde oyun yok.</div>`;
-
-            const fallbackList = recommendedGames.length ? recommendedGames : continueGames;
-            recommendedGrid.innerHTML = fallbackList.length
-                ? fallbackList.map(createGameCard).join("")
+            recommendedGrid.innerHTML = recommendedGames.length
+                ? recommendedGames.map(createGameCard).join("")
                 : `<div class="status">Onerilen oyun bulunamadi.</div>`;
 
             statusBox.textContent = `${games.length} oyun yuklendi.`;
@@ -479,15 +654,16 @@
             if (username) {
                 usernameChip.textContent = username;
             }
+            const avatarName = username || "User";
+            userAvatar.src = `https://ui-avatars.com/api/?name=${encodeURIComponent(avatarName)}&background=f3f3f3&color=111111`;
+            setupAccountMenu();
 
-            createSkeletonCards(continueGrid, 3);
             createSkeletonCards(recommendedGrid, 6);
 
             try {
                 const games = await fetchGames();
                 renderGames(games);
             } catch (error) {
-                continueGrid.innerHTML = "";
                 recommendedGrid.innerHTML = "";
                 statusBox.textContent = `Oyunlar yuklenemedi: ${error.message}`;
                 statusBox.classList.add("error");
