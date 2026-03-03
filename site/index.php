@@ -502,9 +502,9 @@
                         <span class="account-arrow" aria-hidden="true">▼</span>
                     </button>
                     <div class="dropdown" id="account-dropdown">
-                        <a href="account/">Hesap Ayarlari</a>
-                        <a href="profile/avatar.php">Hesap Degistir</a>
-                        <button id="logout-button" type="button">Oturumdan Cik</button>
+                        <a href="account/">Hesap Ayarları</a>
+                        <a href="profile/avatar.php">Hesap Degiştir</a>
+                        <button id="logout-button" type="button">Oturumdan Çık</button>
                     </div>
                 </div>
             </div>
@@ -520,8 +520,9 @@
                 </nav>
 
                 <nav class="nav-group bottom">
-                    <a href="account/">Ayarlar</a>
+                    <a href="profile?username" id="profileUrl">Profil</a>
                     <a href="studio/">Oluştur</a>
+                    <a href="https://capsule.instatus.com/" target="_blank" rel="noopener">Status</a>
                     <a href="https://discord.gg/J4arkFaBnf" target="_blank" rel="noopener">Destek</a>
                 </nav>
             </aside>
@@ -545,6 +546,7 @@
         const recommendedGrid = document.getElementById("recommended-grid");
         const statusBox = document.getElementById("status");
         const usernameChip = document.getElementById("username-chip");
+        const profileUrl = document.getElementById("profileUrl");
         const userAvatar = document.getElementById("user-avatar");
         const accountMenuRoot = document.getElementById("account-menu-root");
         const accountButton = document.getElementById("account-button");
@@ -653,6 +655,7 @@
             const username = getCookie("capsule_username");
             if (username) {
                 usernameChip.textContent = username;
+                profileUrl.href = `profile?username=${encodeURIComponent(username)}`;
             }
             const avatarName = username || "User";
             userAvatar.src = `https://ui-avatars.com/api/?name=${encodeURIComponent(avatarName)}&background=f3f3f3&color=111111`;
