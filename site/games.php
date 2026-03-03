@@ -12,8 +12,8 @@
     <div class="container mx-auto px-4 py-8">
         <header class="mb-8 flex items-center justify-between">
             <div class="flex items-center space-x-4">
-                <a href="https://capsule.net.tr/">
-                    <img src="CapsuleLogo.png" alt="Capsule Logo" class="h-14">
+                <a href="http://capsule.net.tr/">
+                    <img src="http://capsule.net.tr/CapsuleLogo.png" alt="Capsule Logo" class="h-14">
                 </a>
             </div>
             <nav class="flex space-x-4">
@@ -34,9 +34,9 @@
     </div>
 
     <script>
-        const params = new URLSearchParams(window.location.search);
-        const gameId = params.get('id') || 0;
-        const API_URL = `api/v1/games/?id=${gameId}`;
+        const params = window.location.pathname.split('/');
+        const gameId = params[params.length - 1];
+        const API_URL = `http://capsule.net.tr/api/v1/games/?id=${gameId}`;
 
         function openCustomProtocol(url) {
             const iframe = document.createElement('iframe');

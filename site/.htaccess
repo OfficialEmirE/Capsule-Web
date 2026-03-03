@@ -12,8 +12,6 @@ ErrorDocument 500 /error/500.php
 ErrorDocument 503 /error/503.php
 
 RewriteEngine On
-
-# Dosya veya klasör yoksa index.php'ye gönder
 RewriteCond %{REQUEST_FILENAME} !-f
 RewriteCond %{REQUEST_FILENAME} !-d
-RewriteRule ^ index.php [L]
+RewriteRule ^(.*)$ index.php [QSA,L]
