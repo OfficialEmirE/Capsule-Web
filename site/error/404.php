@@ -3,43 +3,38 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Sayfa Bulunamadı - Capsule</title>
-    <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
+    <title>404 - Capsule</title>
+    <link rel="shortcut icon" href="../favicon.ico" type="image/x-icon">
+    <link rel="icon" href="../favicon.ico" type="image/x-icon">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@500;700;800&display=swap" rel="stylesheet">
     <style>
-        .error-container {
-            height: 100vh;
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            flex-direction: column;
-            text-align: center;
-        }
-        .error-title {
-            font-size: 5rem;
-            font-weight: 700;
-            color: #4F46E5;
-        }
-        .error-description {
-            font-size: 1.25rem;
-            color: #6B7280;
-        }
-        .error-button {
-            padding: 10px 20px;
-            background-color: #4F46E5;
-            color: white;
-            border-radius: 5px;
-            text-decoration: none;
-            font-weight: 600;
-        }
+        :root { --line:#dedede; --text:#202020; --muted:#5f5f5f; }
+        *{box-sizing:border-box}
+        body{margin:0;min-height:100vh;font-family:"Nunito","Segoe UI",sans-serif;color:var(--text);background:#fff}
+        .layout{min-height:100vh;display:grid;grid-template-rows:auto 1fr}
+        .topbar{display:flex;justify-content:space-between;align-items:center;padding:12px 18px;border-bottom:1px solid var(--line)}
+        .brand img{height:44px}
+        .content{display:grid;place-items:center;padding:20px}
+        .card{max-width:680px;text-align:center;border:1px solid var(--line);border-radius:16px;padding:28px 22px}
+        .code{font-size:72px;line-height:1;margin:0 0 10px}
+        .title{margin:0 0 8px;font-size:30px}
+        .desc{margin:0 0 18px;color:var(--muted)}
+        .btn{display:inline-block;text-decoration:none;border:1px solid #111;background:#111;color:#fff;border-radius:10px;padding:10px 14px;font-weight:800}
     </style>
 </head>
-<body class="bg-gray-100">
-
-    <div class="error-container">
-        <div class="error-title">404</div>
-        <p class="error-description">Üzgünüz, aradığınız sayfa bulunamadı. Lütfen adresi kontrol edin veya ana sayfaya geri dönün.</p>
-        <a href="/" class="error-button">Ana Sayfaya Dön</a>
-    </div>
-
+<body>
+    <main class="layout">
+        <header class="topbar"><a class="brand" href="../home.php"><img src="../CapsuleLogo.png" alt="Capsule"></a></header>
+        <section class="content">
+            <article class="card">
+                <p class="code">404</p>
+                <h1 class="title">Sayfa Bulunamadı</h1>
+                <p class="desc">Aradığınız sayfa bulunamadı.</p>
+                <a class="btn" href="../home.php">Ana Sayfaya Dön</a>
+            </article>
+        </section>
+    </main>
 </body>
 </html>

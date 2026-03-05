@@ -184,7 +184,7 @@
     .dropdown a:hover,
     .dropdown button:hover {
       background: #f3f3f3;
-    }
+    }`r`n`r`n    .dropdown .logout-btn { color: #dc2626; }`r`n    .dropdown .logout-btn:hover { background: #fef2f2; }
 
     .body {
       display: grid;
@@ -507,14 +507,13 @@
       <div class="top-right">
         <div class="account-menu" id="account-menu-root">
           <button class="account-button" id="account-button" type="button" aria-haspopup="true" aria-expanded="false">
-            <img class="account-avatar" id="user-avatar" src="https://ui-avatars.com/api/?name=User&background=f3f3f3&color=111111" alt="Kullanici avatari">
+            <img class="account-avatar" id="user-avatar" src="https://ui-avatars.com/api/?name=User&background=f3f3f3&color=111111" alt="Kullanıcı avatarı">
             <span class="account-name" id="username-chip">username</span>
             <span class="account-arrow" aria-hidden="true">▼</span>
           </button>
           <div class="dropdown" id="account-dropdown">
-            <a href="../account/">Hesap Ayarlari</a>
-            <a href="../profile/avatar.php">Hesap Degistir</a>
-            <button id="logout-button" type="button">Oturumdan Cik</button>
+            <a href="../account/">Hesap Ayarları</a>
+            <button id="logout-button" class="logout-btn" type="button">Oturumdan Çık</button>
           </div>
         </div>
       </div>
@@ -537,14 +536,14 @@
       <section class="content">
         <div class="page-header">
           <h1 class="page-title">Studio</h1>
-          <button onclick="openCreateGameModal()" class="create-btn">Yeni Oyun Olustur</button>
+          <button onclick="openCreateGameModal()" class="create-btn">Yeni Oyun Oluştur</button>
         </div>
 
         <div id="error" class="status error hidden"></div>
         <div id="warning" class="status hidden"></div>
 
         <div id="games-container"></div>
-        <div id="loading" class="loading">Oyunlar yukleniyor...</div>
+        <div id="loading" class="loading">Oyunlar yükleniyor...</div>
       </section>
     </section>
   </main>
@@ -552,25 +551,25 @@
   <div id="createGameModal" class="modal-backdrop" role="dialog" aria-modal="true" aria-labelledby="create-title">
     <div class="modal">
       <form onsubmit="createGame(event)">
-        <h3 id="create-title">Yeni Oyun Olustur</h3>
+        <h3 id="create-title">Yeni Oyun Oluştur</h3>
 
         <div class="field">
-          <label for="title">Oyun Adi</label>
+          <label for="title">Oyun Adı</label>
           <input type="text" id="title" name="title" required maxlength="100" />
         </div>
 
         <div class="field">
-          <label for="description">Aciklama</label>
+          <label for="description">Açıklama</label>
           <textarea id="description" name="description" maxlength="100"></textarea>
         </div>
 
         <div class="field">
-          <label for="image_url">Gorsel URL</label>
+          <label for="image_url">Görsel URL</label>
           <input type="url" id="image_url" name="image_url" placeholder="https://..." />
         </div>
 
         <div class="modal-actions">
-          <button type="submit" class="btn play">Olustur</button>
+          <button type="submit" class="btn play">Oluştur</button>
           <button type="button" class="btn" onclick="closeCreateGameModal()">Kapat</button>
         </div>
       </form>
@@ -643,7 +642,7 @@
         const data = await response.json();
 
         if (data.status !== "success") {
-          throw new Error(data.message || "Veri alinamadi.");
+          throw new Error(data.message || "Veri alınamadı.");
         }
 
         loading.style.display = "none";
@@ -657,13 +656,13 @@
 
             <div class="studio-info">
               <h3>${game.title}</h3>
-              <p>${game.description || "Aciklama yok."}</p>
+              <p>${game.description || "Açıklama yok."}</p>
             </div>
 
             <div class="studio-actions">
               <a href="/game.php?id=${game.id}" class="btn play">Oyna</a>
               <button onclick="deleteGame(${game.id})" class="btn delete">Sil</button>
-              <button onclick="editGame(${game.id})" class="btn">Duzenle</button>
+              <button onclick="editGame(${game.id})" class="btn">Düzenle</button>
             </div>
           </article>
         `).join("");
@@ -677,7 +676,7 @@
     }
 
     async function deleteGame(id) {
-      if (!confirm("Bu oyunu silmek istediginize emin misiniz?")) {
+      if (!confirm("Bu oyunu silmek istediğinize emin misiniz?")) {
         return;
       }
 
@@ -696,12 +695,12 @@
           loadGames();
         } else {
           const errorElement = document.getElementById("error");
-          errorElement.textContent = "Silme islemi basarisiz: " + data.message;
+          errorElement.textContent = "Silme işlemi başarısız: " + data.message;
           errorElement.classList.remove("hidden");
         }
       } catch (error) {
         const errorElement = document.getElementById("error");
-        errorElement.textContent = "Bir hata olustu: " + error.message;
+        errorElement.textContent = "Bir hata oluştu: " + error.message;
         errorElement.classList.remove("hidden");
       }
     }
@@ -755,7 +754,7 @@
           alert("Hata: " + (data.message || "Bilinmeyen hata"));
         }
       } catch (e) {
-        alert("Bir hata olustu: " + e.message);
+        alert("Bir hata oluştu: " + e.message);
       }
     }
 
