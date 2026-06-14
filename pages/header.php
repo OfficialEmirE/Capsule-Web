@@ -7,11 +7,11 @@
             <ul class="nav-links">
                 <li><a href="#">Home</a></li>
                 <li><a href="#">Games</a></li>
-                <li><a href="#">Catalog</a></li>
+                <!-- <li><a href="#">Catalog</a></li> -->
                 <li><a href="#">Create</a></li>
-                <li><a href="#">Upgrade</a></li>
-                <li><a href="#">Forum</a></li>
-                <li><a href="#">More ▾</a></li>
+                <!-- <li><a href="#">Upgrade</a></li> -->
+                <li><a href="#">Download</a></li>
+                <!-- <li><a href="#">More ▾</a></li> -->
             </ul>
         </div>
         <div class="nav-right">
