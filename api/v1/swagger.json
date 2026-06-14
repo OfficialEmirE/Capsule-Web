@@ -1,0 +1,199 @@
+{
+  "openapi": "3.0.0",
+  "info": {
+    "title": "Capsule Web API",
+    "description": "Developer documentation for Capsule ecosystem web services. All endpoints communicate via JSON payload over POST requests unless specified otherwise. Rate limiting and application-level authentication apply.",
+    "version": "1.0.0"
+  },
+  "paths": {
+    "/api/v1/games/list": {
+      "get": {
+        "summary": "Retrieve active games list",
+        "description": "Fetches a paginated list of publicly visible (public=1) games. Results are sorted by creation date in descending order (`created_at DESC`).",
+        "tags": ["Games"],
+        "parameters": [
+          {
+            "name": "page",
+            "in": "query",
+            "description": "The page number for pagination control. Defaults to 1 if omitted.",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "default": 1
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successfully retrieved list of active games with pagination metadata."
+          },
+          "405": {
+            "description": "Method Not Allowed. Only GET requests are accepted for this endpoint."
+          },
+          "500": {
+            "description": "Internal Server Error. Typically caused by database connection issues or encoding anomalies."
+          }
+        }
+      }
+    },
+    "/api/v1/games/info": {
+      "get": {
+        "summary": "Fetch specific game details",
+        "description": "Returns comprehensive entity data for a single game identified by its unique integer ID. Includes structured thumbnail metadata.",
+        "tags": ["Games"],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "query",
+            "description": "The unique database identifier (Primary Key) of the game entity.",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Game details successfully resolved and returned."
+          },
+          "400": {
+            "description": "Bad Request. Missing or invalid integer provided for the 'id' parameter."
+          },
+          "404": {
+            "description": "Not Found. No game entity exists with the specified ID."
+          },
+          "405": {
+            "description": "Method Not Allowed. Only GET requests are accepted."
+          }
+        }
+      }
+    },
+    "/api/v1/games/create": {
+      "post": {
+        "summary": "Register a new game entity",
+        "description": "Provisions a new game record within the system. Payload validation enforces ownership constraints and structural media verification. `thumbnail_urls` array accepts a hard cap of 8 media objects.",
+        "tags": ["Games"],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["name", "ownerUserId"],
+                "properties": {
+                  "name": { 
+                    "type": "string", 
+                    "maxLength": 255,
+                    "example": "LAST MAN ON EARTH; BOB" 
+                  },
+                  "desc": { 
+                    "type": "string", 
+                    "example": "An immersive tactical survival experience built on edge-case mechanics." 
+                  },
+                  "ownerUserId": { 
+                    "type": "integer", 
+                    "description": "The unique identifier of the user provisioning this game instance.",
+                    "example": 1 
+                  },
+                  "max_players": { 
+                    "type": "integer", 
+                    "minimum": 1,
+                    "default": 10,
+                    "example": 12 
+                  },
+                  "public": { 
+                    "type": "integer", 
+                    "enum": [0, 1],
+                    "default": 1,
+                    "description": "Visibility state control toggle. 0 = Private/Hidden, 1 = Publicly Discovered.",
+                    "example": 1 
+                  },
+                  "thumbnail_urls": {
+                    "type": "array",
+                    "description": "Collection of media assets bound to the game entity. Maximum size: 8 elements.",
+                    "items": {
+                      "type": "object",
+                      "required": ["type", "value"],
+                      "properties": {
+                        "type": { "type": "string", "example": "image" },
+                        "asset_type": { "type": "string", "default": "game_thumbnail", "example": "game_thumbnail" },
+                        "value": { "type": "string", "description": "Asset platform asset ID or reference string.", "example": "1052" }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Entity created successfully. Returns the auto-incremented database ID."
+          },
+          "400": {
+            "description": "Validation Failed. Missing required properties, layout misconfiguration, or media array boundary exceeded."
+          },
+          "405": {
+            "description": "Method Not Allowed. Enforces POST protocol."
+          }
+        }
+      }
+    },
+    "/api/v1/games/update": {
+      "post": {
+        "summary": "Modify an existing game configuration",
+        "description": "Performs a partial or complete layout mutation on an existing game record using a coalesce patching approach. Properties omitted from the request body payload explicitly retain their previous state in the database. The record's ID remains read-only and immutable.",
+        "tags": ["Games"],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["id"],
+                "properties": {
+                  "id": { 
+                    "type": "integer", 
+                    "description": "The targeted game instance identifier. Cannot be mutated.",
+                    "example": 1 
+                  },
+                  "name": { "type": "string", "example": "LAST MAN ON EARTH; BOB (Beta v2)" },
+                  "desc": { "type": "string", "example": "Updated patch logs, system mechanics, and world state updates." },
+                  "max_players": { "type": "integer", "example": 16 },
+                  "public": { "type": "integer", "enum": [0, 1], "description": "Toggle visibility structure. 0 = Hidden, 1 = Visible.", "example": 0 },
+                  "thumbnail_urls": {
+                    "type": "array",
+                    "description": "Overwrites the current array entirely. Subject to standard array boundary constraint filters (Max: 8 items).",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "type": { "type": "string", "example": "image" },
+                        "asset_type": { "type": "string", "example": "game_thumbnail" },
+                        "value": { "type": "string", "example": "1053" }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Mutation successfully committed. `updated_at` system timestamp updated automatically."
+          },
+          "400": {
+            "description": "Bad Request. Target ID property omitted, array overflow, or structural payload data corruption."
+          },
+          "404": {
+            "description": "Not Found. Transaction aborted because the target ID does not exist."
+          },
+          "405": {
+            "description": "Method Not Allowed. Endpoint requires POST payload mapping."
+          }
+        }
+      }
+    }
+  }
+}
