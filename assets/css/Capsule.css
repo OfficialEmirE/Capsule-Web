@@ -156,33 +156,64 @@ a {
 /* ---------- Page layout ---------- */
 .main-container {
     width: 970px;
-    margin: 12px auto;
+    margin: 20px auto;      /* Yukarıdan ve aşağıdan boşluk, yatayda tam ortalama */
     display: flex;
-    gap: 12px;
+    justify-content: space-between; /* İki sütunu iki uca yaslar, boşluğu otomatik ayarlar */
 }
 
 .left-column {
-    width: 550px;
+    width: 650px;  /* Sol alanı genişlettik (580px'den 650px'e çıktı) */
+    margin: 0 auto;
 }
 
 .right-column {
-    width: 408px;
+    width: 300px;  /* Discord alanını eski, orantılı boyutuna geri döndürdük */
+    display: flex;
+    flex-direction: column;
+    margin: 0 auto;
+    gap: 10px;
 }
 
 .top-row {
     display: flex;
     gap: 10px;
-    margin-bottom: 10px;
+    margin: auto;
 }
 
-/* ---------- Login box ---------- */
-.login-box {
-    width: 158px;
-    background: #f8f8f8;
+/* ---------- Download box ---------- */
+.download-btn {
+    background: var(--panel);
     border: 1px solid var(--panel-border);
     border-radius: 6px;
     padding: 12px 10px;
     font-size: 12px;
+    margin-bottom: 10px;
+}
+
+.download-btn button {
+    width: 100%;
+    background: var(--button-primary);
+    color: #fff;
+    padding: 7px;
+    font-size: 13px;
+    font-weight: bold;
+    border-radius: 4px;
+    text-align: left;   /* Yazıyı sola yaslar */
+}
+
+/* ---------- Login box ---------- */
+.login-box {
+    background: #f8f8f8;
+    border: 1px solid var(--panel-border);
+    border-radius: 6px;
+    
+    padding: 12px 10px;
+    font-size: 12px;
+    float: left;
+}
+
+.login-box .login-page {
+    width: 500px;
 }
 
 .login-box h3 {
@@ -202,12 +233,14 @@ a {
 }
 
 .login-box input[type="text"],
+.login-box input[type="email"],
 .login-box input[type="password"] {
     width: 100%;
     padding: 5px 7px;
     margin-bottom: 8px;
     border: 1px solid #ccc;
     border-radius: 3px;
+    border-style: dashed;
     font-size: 12px;
     background: #fff;
 }
@@ -267,8 +300,8 @@ a {
 
 /* ---------- Media content ---------- */
 .video-box {
-    width: 382px;
-    height: 252px;
+    width: 100%;
+    height: 350px;
     background: #000;
     border: 1px solid var(--panel-border);
     border-radius: 4px;
@@ -296,8 +329,8 @@ a {
     background: var(--panel);
     border: 1px solid var(--panel-border);
     border-radius: 6px;
-    padding: 14px;
-    margin-bottom: 10px;
+    padding: 15px;
+    /*margin-bottom: 10px;*/
 }
 
 .featured-game h2 {
@@ -369,6 +402,24 @@ a {
 .stat strong {
     color: var(--text);
 }
+
+/* ---------- Discord Widget ---------- */
+.discord-widget {
+    width: 100%;            /* Sağ sütunun genişliğine (370px) tam otursun */
+    height: 100%;          /* YouTube videosunun yüksekliği ile dengeli olması için ideal yükseklik */
+    background: #2f3136;
+    border: 1px solid var(--panel-border);
+    border-radius: 6px;
+    overflow: hidden;
+    display: flex;
+}
+
+.discord-widget iframe {
+    width: 100%;
+    height: 100%;
+    border: none;
+}
+
 
 /* ---------- Sidebar ---------- */
 .ad-box {
