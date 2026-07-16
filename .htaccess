@@ -1,6 +1,7 @@
 php_value display_errors On
 php_value mbstring.http_input auto
 php_value date.timezone Europe/Istanbul
+php_value output_buffering On
 
 Header set Access-Control-Allow-Origin "*"
 Header set Access-Control-Allow-Methods "GET,PUT,POST,DELETE"

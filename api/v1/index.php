@@ -1,33 +1,48 @@
 <?php
 declare(strict_types=1);
 
-// Config dosyasını bir üst dizinden çekiyoruz
-require_once __DIR__ . '/../config.php';
-
-// Composer paketleri varsa dahil edilsin
-if (file_exists(__DIR__ . '/../../vendor/autoload.php')) {
-    require_once __DIR__ . '/../../vendor/autoload.php';
+// Eğer ana index.php'den ROOT_PATH tanımlanmadıysa mutlak yolu kendimiz hesaplayalım
+if (!defined('ROOT_PATH')) {
+    define('ROOT_PATH', dirname(__DIR__, 2) . '/');
 }
 
-// URL'i bu klasöre göre anlamlandırmak için parçalayalım
-$apiUri = $_SERVER['REQUEST_METHOD'] === 'GET' || $_SERVER['REQUEST_METHOD'] === 'POST' 
-    ? ($_SERVER['REQUEST_URI'] ?? '/') 
-    : '/';
+// ÇIKTI TAMPONU BAŞLANGICI: Dandik header ve buffer silme hatalarını kökten engeller
+ob_start();
 
+// Config dosyasını mutlak yolla güvenli şekilde çekiyoruz
+require_once ROOT_PATH . 'api/config.php';
+
+// Composer paketleri varsa dahil edilsin
+if (file_exists(ROOT_PATH . 'vendor/autoload.php')) {
+    require_once ROOT_PATH . 'vendor/autoload.php';
+}
+
+// URL'i anlamlandırmak için parçalayalım
+$apiUri = $_SERVER['REQUEST_URI'] ?? '/';
 $apiUri = explode('?', $apiUri)[0];
 $apiUri = trim($apiUri, '/');
 $apiParts = explode('/', $apiUri);
 
-// $apiParts yapısı normalde şöyledir: ['api', 'v1', 'games', 'list']
+// $apiParts yapısı: ['api', 'v1', 'games', 'list'] şeklindedir.
 
-// Eğer istek tam olarak /api/v1 ise (yani 2. indisten sonrası yoksa) Dökümantasyonu aç
-if (!isset($apiParts[2]) || $apiParts[2] === '') {
-    ob_end_clean();
+/*
+|--------------------------------------------------------------------------
+| SWAGGER UI DÖKÜMANTASYON SİSTEMİ
+|--------------------------------------------------------------------------
+| Eğer istek tam olarak /api/v1 ise veya arkasından modül gelmediyse dökümantasyonu aç
+*/
+if (!isset($apiParts[2]) || trim($apiParts[2]) === '') {
+    
+    // Güvenli tampon temizliği: Sadece açık bir tampon varsa siler
+    if (ob_get_length() > 0) {
+        ob_end_clean();
+    }
+    
     header('Content-Type: text/html; charset=utf-8');
     
     $jsonPath = __DIR__ . '/swagger.json';
     if (!file_exists($jsonPath)) {
-        die("Hata: 'api/v1/swagger.json' dosyası bulunamadı!");
+        die("Error: 'api/v1/swagger.json' file could not be found!");
     }
     
     $jsonRaw = file_get_contents($jsonPath);
@@ -71,23 +86,40 @@ if (!isset($apiParts[2]) || $apiParts[2] === '') {
 */
 $module = strtolower($apiParts[2]);
 
+// API yanıtları için standart header tanımlaması
+header('Content-Type: application/json; charset=utf-8');
+
 switch ($module) {
     case 'games':
         $apiAction = $apiParts[3] ?? '';
         
-        // Aynı klasördeki games.php kütüphanesini yükle ve çalıştır
-        require_once __DIR__ . '/games.php';
+        // Aynı klasördeki games.php kütüphanesini ROOT_PATH ile yükle
+        require_once ROOT_PATH . 'api/v1/games.php';
         handleGamesApi($apiAction);
         exit;
-
-    // İleride buraya yeni modüller eklemek oyun oyuncağı:
-    // case 'users':
-    //     require_once __DIR__ . '/users.php';
-    //     handleUsersApi($apiParts[3] ?? '');
-    //     exit;
-
+    case 'auth':
+        $apiAction = $apiParts[3] ?? '';
+        
+        // Aynı klasördeki auth.php kütüphanesini ROOT_PATH ile yükle
+        require_once ROOT_PATH . 'api/v1/auth.php';
+        handleAuthApi($apiAction);
+        exit;
+    case 'users':
+        $apiAction = $apiParts[3] ?? '';
+        
+        // Aynı klasördeki users.php kütüphanesini ROOT_PATH ile yükle
+        require_once ROOT_PATH . 'api/v1/users.php';
+        handleUsersApi($apiAction);
+        exit;
+    case 'captcha':
+        // api/v1/captcha.php dosyasını doğrudan ROOT_PATH ile dahil edip çalıştırıyoruz
+        require_once ROOT_PATH . 'api/v1/captcha.php';
+        exit;
     default:
+        if (ob_get_length() > 0) {
+            ob_end_clean();
+        }
         http_response_code(404);
-        echo json_encode(['status' => 'error', 'message' => 'API modülü bulunamadı.'], JSON_UNESCAPED_UNICODE);
+        echo json_encode(['status' => 'error', 'message' => 'API module not found.'], JSON_UNESCAPED_UNICODE);
         exit;
 }

@@ -1,127 +1,214 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="tr">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Games - Capsule Beta</title>
-    <link rel="stylesheet" href="/assets/css/Capsule.css">
+    <link class="styles" rel="stylesheet" href="/assets/css/Capsule.css">
 
     <?php include ROOT_PATH . 'includes/meta.php'; ?>
     <?php include ROOT_PATH . 'includes/icon.php'; ?>
 
     <style>
-    body{
-        margin:0;
-        font:12px Arial;
-        background:#ececec;
-    }
+    /* ---------- Games page (Capsule.css theme'ini kullanır) ---------- */
 
     .games-page{
         width:970px;
         margin:20px auto;
     }
 
-    .top{
+    .games-top{
         display:flex;
         justify-content:space-between;
-        align-items:center;
+        align-items:flex-end;
         margin-bottom:10px;
     }
 
-    h1{
+    .games-top h1{
         margin:0;
         font-size:28px;
-        font-weight:normal;
+        font-weight:bold;
+        color:var(--text);
     }
 
-    .search input{
+    .search input[type="text"]{
         width:180px;
-        padding:5px;
-        border:1px solid #bbb;
+        padding:6px 8px;
+        border:1px solid var(--panel-border);
+        border-radius:4px;
+        font-size:12px;
+        background:var(--panel);
+        color:var(--text);
     }
 
-    .content{
+    /* Layout */
+    .games-content{
         display:flex;
+        gap:15px;
+        height:644px;
     }
 
-    .sidebar{
+    .games-sidebar{
         width:170px;
-        background:#fff;
-        border:1px solid #ccc;
-        padding:10px;
+        flex-shrink:0;
+        background:var(--panel);
+        border:1px solid var(--panel-border);
+        border-radius:6px;
+        padding:12px;
     }
 
-    .sidebar h3{
-        margin:10px 0 5px;
+    .games-sidebar h3{
         font-size:13px;
+        color:var(--text);
+        font-weight:bold;
+        margin:12px 0 6px;
     }
 
-    .sidebar a{
+    .games-sidebar h3:first-child{
+        margin-top:0;
+    }
+
+    .games-sidebar a{
         display:block;
         padding:2px 0;
-        color:#06c;
+        font-size:12px;
+        color:#095fb8;
         text-decoration:none;
     }
 
-    .sidebar a:hover{
+    .games-sidebar a:hover{
         text-decoration:underline;
     }
 
-    .main{
-        flex:1;
-        margin-left:10px;
-        background:#fff;
-        border:1px solid #ccc;
-        padding:10px;
-
-        display:flex;
-        flex-wrap:wrap;
-        gap:15px;
-        align-content:flex-start;
-    }
-
-    .game{
-        width:150px;
-        margin:0;
-    }
-
-    .game img{
-        width:150px;
-        height:100px;
-        border:1px solid #aaa;
-        background:#ddd;
-    }
-
-    .game-title{
-        margin-top:5px;
+    .games-sidebar a.active{
+        color:var(--text);
         font-weight:bold;
     }
 
-    .game-title a{
-        color:#06c;
+    .games-main{
+        flex:1;
+        background:var(--panel);
+        border:1px solid var(--panel-border);
+        border-radius:6px;
+        padding:15px;
+        min-height:200px;
+
+        display:flex;
+        flex-direction:column;
+    }
+
+    .games-grid{
+        display:grid;
+        grid-template-columns:repeat(4,170px);
+        gap:20px 15px;
+        flex:1;
+        align-content:start;
+    }
+
+    .game-card{
+        width:170px;
+        display:flex;
+        flex-direction:column;
+    }
+
+    .game-card img{
+        display:block;
+        width:170px;
+        height:110px;
+        object-fit:cover;
+        background:#ddd;
+        border:1px solid #cfcfcf;
+    }
+
+    .game-card .game-title{
+        margin-top:6px;
+        font-size:12px;
+        font-weight:bold;
+        line-height:1.3;
+    }
+
+    .game-card .game-title a{
+        color:#095fb8;
         text-decoration:none;
     }
 
-    .creator{
-        color:#777;
+    .game-card .game-title a:hover{
+        text-decoration:underline;
+    }
+
+    .game-card .creator{
         font-size:11px;
+        color:var(--muted);
+        margin-top:2px;
     }
 
-    .stats{
-        color:#555;
-        font-size:10px;
+    .game-card .players{
+        font-size:11px;
+        color:#c0392b;
+        font-weight:bold;
+        margin-top:2px;
+        display:flex;
+        align-items:center;
+        justify-content:space-between;
     }
 
-    .pages{
-        clear:both;
+    .game-card .players .icons{
+        color:var(--muted);
+        font-size:12px;
+    }
+
+    .games-loading,
+    .games-empty,
+    .games-error{
+        width:100%;
+        padding:40px 10px;
         text-align:center;
-        padding-top:10px;
+        color:var(--muted);
+        font-size:13px;
     }
 
-    .pages a{
-        margin:0 3px;
-        color:#06c;
+    .games-error{
+        color:#c0392b;
+    }
+
+    /* Pagination */
+    .games-pagination{
+        margin-top:auto;
+        padding-top:15px;
+        border-top:1px solid #eee;
+
+        display:flex;
+        justify-content:center;
+        align-items:center;
+        gap:10px;
+
+        font-size:12px;
+        color:var(--muted);
+    }
+
+    .games-pagination a,
+    .games-pagination span.btn-disabled{
+        display:flex;
+        align-items:center;
+        justify-content:center;
+        width:28px;
+        height:28px;
+        background:var(--button-primary);
+        color:#fff;
+        border-radius:4px;
         text-decoration:none;
+        cursor:pointer;
+        border:none;
+        font-size:14px;
+    }
+
+    .games-pagination a:hover{
+        background:var(--button-primary-hover);
+    }
+
+    .games-pagination span.btn-disabled{
+        background:#ccc;
+        cursor:default;
     }
     </style>
 
@@ -132,7 +219,7 @@
 
 <div class="games-page">
 
-    <div class="top">
+    <div class="games-top">
         <h1>Games</h1>
 
         <div class="search">
@@ -140,56 +227,40 @@
         </div>
     </div>
 
-    <div class="content">
+    <div class="games-content">
 
-        <div class="sidebar">
+        <div class="games-sidebar">
 
-            <h3>Sorted By</h3>
-
+            <h3>Sorted By:</h3>
+            <a href="#" class="active">Relevance</a>
             <a href="#">Popular</a>
+            <a href="#">Most Favorited</a>
             <a href="#">Featured</a>
-            <a href="#">Top Rated</a>
-            <a href="#">New</a>
 
-            <h3>Genres</h3>
-
-            <a href="#">All</a>
+            <h3>Genres:</h3>
+            <a href="#" class="active">All</a>
             <a href="#">Building</a>
-            <a href="#">Adventure</a>
-            <a href="#">Town</a>
             <a href="#">Horror</a>
+            <a href="#">Town and City</a>
+            <a href="#">Military</a>
+            <a href="#">Comedy</a>
+            <a href="#">Medieval</a>
+            <a href="#">Adventure</a>
+            <a href="#">Sci-Fi</a>
+            <a href="#">Naval</a>
+            <a href="#">FPS</a>
+            <a href="#">RPG</a>
+            <a href="#">Sports</a>
+            <a href="#">Fighting</a>
+            <a href="#">Western</a>
 
         </div>
 
-        <div class="main">
-
-            <?php for($i=1;$i<=18;$i++): ?>
-
-            <div class="game">
-                <img src="https://placehold.co/150x100">
-                <div class="game-title">
-                    <a href="#">Capsule Game <?=$i?></a>
-                </div>
-                <div class="creator">
-                    by Builder
-                </div>
-                <div class="stats">
-                    👥 24 Playing<br>
-                    👁 154,322 Visits
-                </div>
+        <div class="games-main">
+            <div id="gamesGrid" class="games-grid">
+                <div class="games-loading">Loading...</div>
             </div>
-
-            <?php endfor; ?>
-
-            <div class="pages">
-                <a href="#">&lt;</a>
-                <a href="#"><b>1</b></a>
-                <a href="#">2</a>
-                <a href="#">3</a>
-                <a href="#">4</a>
-                <a href="#">&gt;</a>
-            </div>
-
+            <div id="gamesPagination" class="games-pagination"></div>
         </div>
 
     </div>
@@ -197,6 +268,173 @@
 </div>
 
 <?php include ROOT_PATH . 'includes/bottom.php'; ?>
+
+<script>
+(function () {
+    var API_BASE = 'http://capsule.my.to/api/v1/games/list';
+    
+    // Aynı kullanıcıyı tekrar tekrar çekmemek için basit bir Client-Side Cache
+    var userCache = {};
+
+    var gridEl = document.getElementById('gamesGrid');
+    var pagerEl = document.getElementById('gamesPagination');
+
+    function getPageFromUrl() {
+        var params = new URLSearchParams(window.location.search);
+        var page = parseInt(params.get('page'), 10);
+        return (page && page > 0) ? page : 1;
+    }
+
+    function getThumbnail(game) {
+        return "https://placehold.co/170x110?text=Beta+Fature";
+    }
+
+    function escapeHtml(str) {
+        var div = document.createElement('div');
+        div.textContent = str == null ? '' : String(str);
+        return div.innerHTML;
+    }
+
+    /**
+     * Users API'sinden kullanıcı adını çekerek DOM'daki ilgili alanı günceller.
+     */
+    function resolveAndRenderCreator(userId, placeholderId) {
+        if (!userId) {
+            var el = document.getElementById(placeholderId);
+            if (el) el.innerHTML = 'by <span style="font-weight: bold;">System</span>';
+            return;
+        }
+
+        // 1. Durum: Bilgi zaten önbellekte (Cache) mevcutsa doğrudan DOM'a yaz
+        if (userCache[userId]) {
+            updateCreatorElement(placeholderId, userId, userCache[userId]);
+            return;
+        }
+
+        // 2. Durum: Önbellekte yoksa Users API'yi sorgula
+        fetch('/api/v1/users/info?id=' + encodeURIComponent(userId))
+            .then(function (res) {
+                return res.ok ? res.json() : null;
+            })
+            .then(function (data) {
+                if (data && data.status === 'success' && data.user) {
+                    // Çekilen veriyi cache'e yaz
+                    userCache[userId] = data.user.username;
+                    updateCreatorElement(placeholderId, userId, data.user.username);
+                } else {
+                    updateCreatorElement(placeholderId, userId, 'Unknown User');
+                }
+            })
+            .catch(function () {
+                updateCreatorElement(placeholderId, userId, 'Unknown User');
+            });
+    }
+
+    /**
+     * İlgili kartın yapımcı HTML yapısını güncelleyen yardımcı fonksiyon
+     */
+    function updateCreatorElement(elementId, userId, username) {
+        var el = document.getElementById(elementId);
+        if (el) {
+            if (username === 'Unknown User') {
+                el.innerHTML = 'by <span style="color: var(--muted); font-weight: bold;">Unknown User</span>';
+            } else {
+                el.innerHTML = 'by <a href="/users/' + encodeURIComponent(userId) + '" style="color: #095fb8; text-decoration: none; font-weight: bold;">' + escapeHtml(username) + '</a>';
+            }
+        }
+    }
+
+    function renderGames(games) {
+        if (!games || games.length === 0) {
+            gridEl.innerHTML = '<div class="games-empty">No games available yet.</div>';
+            return;
+        }
+
+        var html = '';
+        games.forEach(function (game) {
+            // Veritabanındaki yapımcı kolon ismine göre id'yi yakala (ownerUserId veya creator_id)
+            var creatorId = game.ownerUserId || game.creator_id || null;
+            var placeholderId = 'creator-placeholder-' + game.id;
+            
+            html += ''
+                + '<div class="game-card">'
+                + '<img src="' + escapeHtml(getThumbnail(game)) + '" alt="' + escapeHtml(game.name) + '">'
+                + '<div class="game-title"><a href="/games/info?id=' + encodeURIComponent(game.id) + '">' + escapeHtml(game.name) + '</a></div>'
+                // Başlangıçta "Loading..." gösteriyoruz, hemen ardından resolve tetiklenecek
+                + '<div class="creator" id="' + placeholderId + '">by <span style="color: var(--muted);">Loading...</span></div>'
+                + '<div class="players">'
+                + '<span>Max ' + escapeHtml(game.max_players) + ' players</span>'
+                + '<span class="icons">🛠 👤</span>'
+                + '</div>'
+                + '</div>';
+
+            // HTML henüz DOM'a eklenmediği için tarayıcının render etmesinden hemen sonra resolve işlemini çağırıyoruz
+            setTimeout(function() {
+                // Eğer API'den halihazırda "owner" objesi dolu geldiyse doğrudan cache'e yazalım
+                if (game.owner && game.owner.username) {
+                    userCache[creatorId] = game.owner.username;
+                }
+                resolveAndRenderCreator(creatorId, placeholderId);
+            }, 0);
+        });
+
+        gridEl.innerHTML = html;
+    }
+
+    function renderPagination(pagination) {
+        var currentPage = pagination.current_page || 1;
+        var totalPages = pagination.total_pages || 1;
+
+        var html = '';
+
+        if (currentPage > 1) {
+            html += '<a href="?page=' + (currentPage - 1) + '">&#9664;</a>';
+        } else {
+            html += '<span class="btn-disabled">&#9664;</span>';
+        }
+
+        html += '<span>' + currentPage + ' of ' + Math.max(totalPages, 1) + '</span>';
+
+        if (currentPage < totalPages) {
+            html += '<a href="?page=' + (currentPage + 1) + '">&#9654;</a>';
+        } else {
+            html += '<span class="btn-disabled">&#9654;</span>';
+        }
+
+        pagerEl.innerHTML = html;
+    }
+
+    function loadGames() {
+        var page = getPageFromUrl();
+
+        gridEl.innerHTML = '<div class="games-loading">Loading...</div>';
+        pagerEl.innerHTML = '';
+
+        fetch(API_BASE + '?page=' + page, {
+            method: 'GET',
+            headers: { 'Accept': 'application/json' }
+        })
+            .then(function (res) {
+                if (!res.ok) {
+                    throw new Error('HTTP ' + res.status);
+                }
+                return res.json();
+            })
+            .then(function (data) {
+                if (data.status !== 'success') {
+                    throw new Error(data.message || 'Bilinmeyen API hatası.');
+                }
+                renderGames(data.games);
+                renderPagination(data.pagination || {});
+            })
+            .catch(function (err) {
+                gridEl.innerHTML = '<div class="games-error">⚠ API request failed: ' + escapeHtml(err.message) + '</div>';
+            });
+    }
+
+    loadGames();
+})();
+</script>
 
 </body>
 </html>

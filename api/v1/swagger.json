@@ -5,7 +5,56 @@
     "description": "Developer documentation for Capsule ecosystem web services. All endpoints communicate via JSON payload over POST requests unless specified otherwise. Rate limiting and application-level authentication apply.",
     "version": "1.0.0"
   },
+  "tags": [
+    {
+      "name": "Games",
+      "description": "Endpoints managing game entities and active server lists."
+    },
+    {
+      "name": "Users",
+      "description": "Endpoints for resolving, paginating, and modifying user accounts."
+    },
+    {
+      "name": "Auth",
+      "description": "Endpoints managing user authentication sessions."
+    }
+  ],
   "paths": {
+    "/api/v1/auth/logoff": {
+      "post": {
+        "summary": "Terminate current user session",
+        "description": "Clears user authentication state, invalidating active session cookies, tokens, or persistent login hashes.",
+        "tags": ["Auth"],
+        "responses": {
+          "200": {
+            "description": "Session successfully terminated. Client-side authentication structures should be cleared.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "status": {
+                      "type": "string",
+                      "example": "success"
+                    },
+                    "message": {
+                      "type": "string",
+                      "example": "Logged off successfully"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized. No active session context was detected."
+          },
+          "405": {
+            "description": "Method Not Allowed. Enforces POST protocol for secure session mutation."
+          }
+        }
+      }
+    },
     "/api/v1/games/list": {
       "get": {
         "summary": "Retrieve active games list",
@@ -191,6 +240,212 @@
           },
           "405": {
             "description": "Method Not Allowed. Endpoint requires POST payload mapping."
+          }
+        }
+      }
+    },
+    "/api/v1/games/search": {
+      "get": {
+        "summary": "Search publicly visible games",
+        "description": "Searches for publicly visible games matching the search term in their name or description fields.",
+        "tags": ["Games"],
+        "parameters": [
+          {
+            "name": "q",
+            "in": "query",
+            "description": "The search keyword string.",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "page",
+            "in": "query",
+            "description": "The page number for pagination control. Defaults to 1 if omitted.",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "default": 1
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Returns matching game results with pagination metadata."
+          },
+          "400": {
+            "description": "Bad Request. The query parameter 'q' is missing or blank."
+          },
+          "405": {
+            "description": "Method Not Allowed. Only GET requests are supported."
+          }
+        }
+      }
+    },
+    "/api/v1/users/info": {
+      "get": {
+        "summary": "Fetch specific user details",
+        "description": "Returns a single user's public profile data. Client must provide either 'id' or 'username' as a query parameter.",
+        "tags": ["Users"],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "query",
+            "description": "The unique database identifier of the user.",
+            "required": false,
+            "schema": {
+              "type": "integer"
+            }
+          },
+          {
+            "name": "username",
+            "in": "query",
+            "description": "The unique alphanumeric username string of the user.",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": { "description": "User details successfully resolved and returned." },
+          "400": { "description": "Bad Request. Both 'id' and 'username' parameters were omitted or conflicting." },
+          "404": { "description": "Not Found. No user entity matches the provided criteria." }
+        }
+      }
+    },
+    "/api/v1/users/list": {
+      "get": {
+        "summary": "Retrieve paginated users list",
+        "description": "Fetches a globally paginated array of users sorted by registration date in descending order.",
+        "tags": ["Users"],
+        "parameters": [
+          {
+            "name": "page",
+            "in": "query",
+            "description": "The page index control parameter.",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "default": 1
+            }
+          }
+        ],
+        "responses": {
+          "200": { "description": "Successfully retrieved users array with total records and pagination metadata." },
+          "500": { "description": "Internal Server Error. Database query failure." }
+        }
+      }
+    },
+    "/api/v1/users/avatar": {
+      "get": {
+        "summary": "Fetch a user's avatar color identity",
+        "description": "Directly extracts the hex color signature string representing the target user's custom layout avatar. Use either 'id' OR 'username'.",
+        "tags": ["Users"],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "query",
+            "description": "Target user entity identifier.",
+            "required": false,
+            "schema": {
+              "type": "integer"
+            }
+          },
+          {
+            "name": "username",
+            "in": "query",
+            "description": "Target user custom unique handle.",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": { "description": "Avatar hex string correctly resolved. Defaults to '#ffffff' if unconfigured." },
+          "400": { "description": "Bad Request. Required identification parameters missing or mismatched." },
+          "404": { "description": "Not Found. User entity non-existent." }
+        }
+      }
+    },
+    "/api/v1/users/update": {
+      "post": {
+        "summary": "Modify an existing user profile",
+        "description": "Performs a partial or complete mutation on the authenticated user's profile. Properties omitted from the request payload explicitly retain their previous state.",
+        "tags": ["Users"],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["user_id"],
+                "properties": {
+                  "user_id": {
+                    "type": "integer",
+                    "description": "The current authenticating user identifier (to be replaced by Session token later).",
+                    "example": 1
+                  },
+                  "username": {
+                    "type": "string",
+                    "description": "New custom unique alphanumeric username to assign.",
+                    "example": "new_username123"
+                  },
+                  "avatar": {
+                    "type": "string",
+                    "description": "New target CSS/Hex color system configuration tag.",
+                    "example": "#ff0000"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": { "description": "Profile configuration updated successfully." },
+          "400": { "description": "Bad Request. Missing required fields or payload data corruption." },
+          "401": { "description": "Unauthorized. Provided authorization context missing or empty." },
+          "409": { "description": "Conflict. Selected target username is already assigned to another active identity." }
+        }
+      }
+    },
+    "/api/v1/users/search": {
+      "get": {
+        "summary": "Search active users",
+        "description": "Finds registered users with usernames matching the provided search keyword.",
+        "tags": ["Users"],
+        "parameters": [
+          {
+            "name": "q",
+            "in": "query",
+            "description": "Alphanumeric search term to query against usernames.",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "page",
+            "in": "query",
+            "description": "Pagination page control offset parameter.",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "default": 1
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Returns array of matched user entities and details."
+          },
+          "400": {
+            "description": "Bad Request. Missing search query parameter 'q'."
           }
         }
       }
