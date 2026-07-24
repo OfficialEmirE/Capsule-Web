@@ -28,8 +28,8 @@
                             <p>Password:<span style="color: red; vertical-align: super;">*</span></p>
                             <input type="password" placeholder="Password" name="password" required>
                             
-                            <p style="margin-top: 10px;">
-                                <input type="checkbox" name="terms" required/> I agree to the <a href="/terms" style="text-decoration: underline;">Terms of Use</a> and <a href="/privacy" style="text-decoration: underline;">Privacy Policy</a>.<span style="color: red; vertical-align: super;">*</span>
+                            <p>
+                                <input type="checkbox" name="terms" required/> I agree to the <a href="/termsofuse" style="text-decoration: underline;">Terms of Use</a> and <a href="/privacypolicy" style="text-decoration: underline;">Privacy Policy</a>.<span style="color: red; vertical-align: super;">*</span>
                             </p>
                             
                             <div>

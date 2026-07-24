@@ -21,6 +21,76 @@ if (file_exists(ROOT_PATH . 'vendor/autoload.php')) {
 
 /*
 |--------------------------------------------------------------------------
+| URL PARSING
+|--------------------------------------------------------------------------
+*/
+$uri = $_SERVER['REQUEST_URI'] ?? '/';
+$uri = explode('?', $uri)[0];
+$uri = trim($uri, '/');
+$uri_parts = explode('/', $uri);
+
+/*
+|--------------------------------------------------------------------------
+| GLOBAL VARIABLES INITIALIZATION
+|--------------------------------------------------------------------------
+| Tanımsız değişken (Undefined variable) hatalarını önlemek için router genelinde
+| kullanılan bayrakları (flags) varsayılan olarak false çekiyoruz.
+*/
+$is_whitelisted = false;
+$is_blocked = false;
+
+/*
+|--------------------------------------------------------------------------
+| AUTOMATIC BAN CONTROL & ROUTING (BEYAZ LİSTE MEKANİZMASI)
+|--------------------------------------------------------------------------
+*/
+
+// Banlı kullanıcının kesinlikle erişebilmesi gereken rotalar
+$ban_whitelist = [
+    'api/v1/auth/logout',
+    'termsofuse',
+    'privacypolicy',
+    'auth/reset'    // Eğer ileride bunu kullanırsan diye yedek
+];
+
+// Gelen URI'yi temizle ve küçük harfe zorla
+$current_uri_clean = strtolower(trim($uri, '/'));
+
+$is_whitelisted = false;
+foreach ($ban_whitelist as $white_route) {
+    $white_route_clean = strtolower(trim($white_route, '/'));
+    
+    // Tam eşleşme veya alt dizin kontrolü
+    if ($current_uri_clean === $white_route_clean || str_starts_with($current_uri_clean, $white_route_clean . '/')) {
+        $is_whitelisted = true;
+        break;
+    }
+}
+
+// Kullanıcı giriş yapmışsa ve whitelist'te DEĞİLSE ban kontrolünü çalıştır
+if (isset($_SESSION['user_id']) && !$is_whitelisted) {
+    try {
+        $db = api_db();
+        $banCheck = $db->prepare("
+            SELECT id FROM user_bans 
+            WHERE user_id = ? AND is_active = 1 
+            AND (expires_at IS NULL OR expires_at > NOW())
+            LIMIT 1
+        ");
+        $banCheck->execute([$_SESSION['user_id']]);
+        
+        if ($banCheck->fetch()) {
+            // Eğer banlıysa ve normal bir sayfa istiyorsa banned.php'ye yönlendir
+            require ROOT_PATH . 'pages/banned.php';
+            exit;
+        }
+    } catch (Exception $e) {
+        // DB hatası durumunda çökme
+    }
+}
+
+/*
+|--------------------------------------------------------------------------
 | HTTPS -> HTTP YÖNLENDİRMESİ
 |--------------------------------------------------------------------------
 | Projenin SSL (HTTPS) yerine HTTP protokolü üzerinden çalışmasını zorlar.
@@ -32,29 +102,6 @@ if ((isset($_SERVER['HTTPS']) && $_SERVER['HTTPS'] === 'on') ||
     header("Location: " . $redirect_url, true, 301);
     exit;
 }
-
-/*
-|--------------------------------------------------------------------------
-| MAINTENANCE MODE
-|--------------------------------------------------------------------------
-
-if (defined('MAINTENANCE_MODE') && MAINTENANCE_MODE === true) {
-    http_response_code(503);
-    header('Retry-After: 3600');
-    $errorCode = 503;
-    require ROOT_PATH . 'error.php';
-    exit;
-}
-*/
-/*
-|--------------------------------------------------------------------------
-| URL PARSING
-|--------------------------------------------------------------------------
-*/
-$uri = $_SERVER['REQUEST_URI'] ?? '/';
-$uri = explode('?', $uri)[0];
-$uri = trim($uri, '/');
-$uri_parts = explode('/', $uri);
 
 /*
 |--------------------------------------------------------------------------
@@ -71,92 +118,13 @@ if ($uri === '' || $uri === 'pages/home') {
     require ROOT_PATH . 'pages/home.php';
     exit;
 }
-/*
-if ($uri === 'Browse') {
-    require ROOT_PATH . 'browse.php';
+
+// Eğer banlı değilse ve doğrudan /banned sayfasına erişmek istiyorsa burası yakalar
+if ($uri === 'banned') {
+    require ROOT_PATH . 'pages/banned.php';
     exit;
 }
 
-if ($uri === 'Develop') {
-    require ROOT_PATH . 'develop.php';
-    exit;
-}
-
-if ($uri === 'login') {
-    $authMode = 'login';
-    require ROOT_PATH . 'auth.php';
-    exit;
-}
-
-if ($uri === 'register') {
-    $authMode = 'register';
-    require ROOT_PATH . 'auth.php';
-    exit;
-}
-
-if ($uri === 'search') {
-    require ROOT_PATH . 'search.php';
-    exit;
-}
-*/
-/*
-|--------------------------------------------------------------------------
-| ERROR PAGES
-|--------------------------------------------------------------------------
-
-if (in_array($uri, ['400', '401', '403', '404', '500', '503'], true)) {
-    $errorCode = (int) $uri;
-    require ROOT_PATH . 'error.php';
-    exit;
-}
-*/
-/*
-|--------------------------------------------------------------------------
-| INFO PAGES (Main & Sub-pages)
-|--------------------------------------------------------------------------
-
-if (isset($uri_parts[0]) && strtolower($uri_parts[0]) === 'info') {
-    
-    $subPage = isset($uri_parts[1]) ? strtolower($uri_parts[1]) : 'main'; 
-
-    switch ($subPage) {
-        case 'main':
-            $pageType = 'info_main';
-            $pageTitle = 'Home';
-            $pageContent = 'Welcome to the Info section of Capsule! Here you can find important information about our platform, including our Privacy Policy, Terms of Service, and details about our company. Please use the menu on the left to navigate through the different pages.';
-            break;
-
-        case 'about':
-            $pageType = 'about';
-            $pageTitle = 'About Us';
-            $pageContent = 'Welcome to the About Us page. Here you can find details about our company, our mission, and the team behind Capsule.';
-            break;
-
-        case 'termsofservice':
-            $pageType = 'terms';
-            $pageTitle = 'Terms of Service';
-            $pageContent = 'Welcome to the Terms of Service page. Please read these terms carefully before using our platform to understand your rights and responsibilities.';
-            break;
-
-        case 'privacy':
-            $pageType = 'privacy';
-            $pageTitle = 'Privacy Policy';
-            $pageContent = 'Welcome to the Privacy Policy page. Here we explain how we collect, use, protect, and handle your personal data across Capsule.';
-            break;
-
-        case 'sourcecode':
-            $pageType = 'sourcecode';
-            $pageTitle = 'Source Codes';
-            $pageContent = 'Welcome to the Source Codes page. Capsule believes in transparency; you can review our open-source repositories and development guidelines here.';
-            break;
-    }
-
-    if (isset($pageType)) {
-        require ROOT_PATH . 'info.php';
-        exit;
-    }
-}
-*/
 /*
 |--------------------------------------------------------------------------
 | API V1 GATEWAY (Direkt 404 Kuralı Dahil)
@@ -182,17 +150,6 @@ if (isset($uri_parts[0]) && $uri_parts[0] === 'api') {
 
 /*
 |--------------------------------------------------------------------------
-| OYUN DETAY (games/25485 sistemi)
-|--------------------------------------------------------------------------
-
-if (isset($uri_parts[0]) && $uri_parts[0] === 'games' && isset($uri_parts[1]) && is_numeric($uri_parts[1])) {
-    $id = $uri_parts[1]; // ID'yi yakaladık!
-    require ROOT_PATH . 'games.php';
-    exit;
-}
-*/
-/*
-|--------------------------------------------------------------------------
 | USER PAGE
 |--------------------------------------------------------------------------
 */
@@ -206,9 +163,12 @@ if (isset($uri_parts[0]) && $uri_parts[0] === 'users' && isset($uri_parts[1]) &&
 |--------------------------------------------------------------------------
 | ROUTE BLACKLIST (KARA LİSTE) KONTROLÜ
 |--------------------------------------------------------------------------
+| pages/banned.php dosyasına doğrudan URL manipülasyonu ile erişimi engellemek 
+| için listeye ekledik.
 */
 $blacklist = [
     'users/userinfo',
+    'pages/banned',
 ];
 
 // Gelen URI'yi hem doğrudan, hem de sonuna .php ekleyerek ya da çıkartarak temiz bir şekilde kontrol edelim
@@ -216,7 +176,6 @@ $clean_uri = strtolower($uri);
 $uri_with_ext = str_ends_with($clean_uri, '.php') ? $clean_uri : $clean_uri . '.php';
 $uri_no_ext = str_ends_with($clean_uri, '.php') ? substr($clean_uri, 0, -4) : $clean_uri;
 
-$is_blocked = false;
 foreach ($blacklist as $blocked_route) {
     $blocked_route_clean = strtolower(trim($blocked_route, '/'));
     if ($clean_uri === $blocked_route_clean || $uri_with_ext === $blocked_route_clean || $uri_no_ext === $blocked_route_clean) {
@@ -240,6 +199,7 @@ if ($is_blocked) {
     }
     exit;
 }
+
 // Alternatif: pages/ klasörü altında bir sayfa çağrılıyorsa (Örn: /hakkimizda -> pages/hakkimizda.php)
 $page_file = 'pages/' . $uri . '.php';
 if (file_exists(ROOT_PATH . $page_file)) {
@@ -258,7 +218,6 @@ $errorCode = 404;
 if (file_exists(ROOT_PATH . 'error.php')) {
     require ROOT_PATH . 'error.php';
 } else {
-    http_response_code(404);
     header('Content-Type: application/json; charset=utf-8');
     echo json_encode([
         'status' => 'error',

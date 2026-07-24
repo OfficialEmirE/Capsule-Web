@@ -66,7 +66,7 @@
             </div>
         </div>
 
-        <script src="/assets/js/DiscordWidget.js" data-guild-id="1520893978201817218" data-invite-url="https://discord.gg/YOUR_INVITE_CODE" data-timeout="6000"></script>
+        <script src="/assets/js/DiscordWidget.js" data-guild-id="1520893978201817218" data-invite-url="https://discord.gg/JEw6YFtEMe" data-timeout="6000"></script>
 
         <?php include ROOT_PATH . 'includes/bottom.php'; ?>
     </body>

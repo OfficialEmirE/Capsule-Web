@@ -25,7 +25,7 @@
                             <input type="submit" name="login" value="Login" style="width:70px; height:25px; font-family: 'Trebuchet MS'">
                             <div style="font-size: 12px;">
                                 <p>Don't have an account? <a href="/auth/register" style="text-decoration: underline;">Sign up</a></p>
-                                <!-- <p><a href="/auth/reset" style="text-decoration: underline;">Reset Password</a></p> -->
+                                <p><a href="/auth/reset" style="text-decoration: underline;">Reset Password</a></p>
                             </div>
                         </form>       
                     </div>

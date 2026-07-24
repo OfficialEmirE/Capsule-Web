@@ -20,7 +20,7 @@
     }
   ],
   "paths": {
-    "/api/v1/auth/logoff": {
+    "/api/v1/auth/logout": {
       "post": {
         "summary": "Terminate current user session",
         "description": "Clears user authentication state, invalidating active session cookies, tokens, or persistent login hashes.",

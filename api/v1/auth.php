@@ -1,8 +1,37 @@
 <?php
 declare(strict_types=1);
 
+use PHPMailer\PHPMailer\PHPMailer;
+use PHPMailer\PHPMailer\Exception;
+
+// --- GÜVENLİ 30 GÜNLÜK SESSION ÇEREZ YAPILANDIRMASI ---
+$lifetime = 30 * 24 * 60 * 60; // 30 gün (saniye cinsinden)
+
+// Eğer arka planda (veya router/auto_start ile) oturum zaten başlatılmışsa kapatıyoruz
+if (session_status() === PHP_SESSION_ACTIVE) {
+    session_write_close();
+}
+
+// Şimdi parametreleri güvenle set edebiliriz, hata/uyarı vermez:
+session_set_cookie_params([
+    'lifetime' => $lifetime,
+    'path' => '/',
+    'secure' => isset($_SERVER['HTTPS']), // HTTPS varsa secure yap
+    'httponly' => true,                   // Javascript erişimini engelle (güvenlik için)
+    'samesite' => 'Lax'
+]);
+
+ini_set('session.gc_maxlifetime', (string)$lifetime);
+
+// Parametrelerimizi set ettikten sonra oturumu yeni ayarlarla yeniden başlatıyoruz
+session_start();
+
 // Config dosyasını dahil ediyoruz. 2 seviye yukarı çıkarak ana dizindeki config.php'yi arar.
 $configPath = dirname(__DIR__, 1) . '/config.php';
+
+require_once dirname(__DIR__, 2) . '/vendor/phpmailer/src/Exception.php';
+require_once dirname(__DIR__, 2) . '/vendor/phpmailer/src/PHPMailer.php';
+require_once dirname(__DIR__, 2) . '/vendor/phpmailer/src/SMTP.php';
 
 if (!file_exists($configPath)) {
     http_response_code(500);
@@ -30,7 +59,7 @@ function handleAuthApi(string $action): void
         exit;
     }
 
-    // Get database connection from config.php's api_db() function (Not needed for logout but kept for standard flow)
+    // Get database connection from config.php's api_db() function
     $db = null;
     if ($action !== 'logout') {
         try {
@@ -88,7 +117,7 @@ function handleAuthApi(string $action): void
                 }
 
                 $password_hash = password_hash($password, PASSWORD_BCRYPT);
-                $colors = ['#3498db', '#2ecc71', '#9b59b6', '#e67e22', '#e74c3c', '#1abc9c', '#FFFFFF',];
+                $colors = ['#3498db', '#2ecc71', '#9b59b6', '#e67e22', '#e74c3c', '#1abc9c', '#FFFFFF'];
                 $random_color = $colors[array_rand($colors)];
 
                 $dbEmail = !empty($email) ? $email : null;
@@ -173,7 +202,6 @@ function handleAuthApi(string $action): void
                 session_start();
             }
 
-            // Session verilerini temizle ve oturumu yok et
             $_SESSION = [];
 
             if (ini_get("session.use_cookies")) {
@@ -192,10 +220,262 @@ function handleAuthApi(string $action): void
             ], JSON_UNESCAPED_UNICODE);
             break;
 
-        default:
-            http_response_code(400);
-            echo json_encode(["status" => "error", "message" => "Invalid action. Choose register, login or logout."], JSON_UNESCAPED_UNICODE);
-            break;
+        // --------------------------------------------------------------------------
+        // RESET PASSWORD
+        // --------------------------------------------------------------------------
+        case 'forgot':
+            $email = trim($input['email'] ?? '');
+
+            if (!$email) {
+                http_response_code(400);
+                echo json_encode([
+                    "status"=>"error",
+                    "message"=>"Email is required."
+                ]);
+                exit;
+            }
+
+
+            $stmt = $db->prepare("
+                SELECT id, username 
+                FROM users 
+                WHERE email = ?
+                LIMIT 1
+            ");
+
+            $stmt->execute([$email]);
+
+            $user = $stmt->fetch(PDO::FETCH_ASSOC);
+
+
+            // Güvenlik: hesap yoksa da aynı cevap
+            if (!$user) {
+
+                echo json_encode([
+                    "status"=>"success",
+                    "message"=>"If an account exists, please check your e-mail."
+                ]);
+
+                exit;
+            }
+
+
+            $stmt = $db->prepare("
+                DELETE FROM password_resets
+                WHERE user_id = ?
+            ");
+
+            $stmt->execute([
+                $user['id']
+            ]);
+
+
+
+            $token = bin2hex(random_bytes(32));
+
+
+            $hash = password_hash(
+                $token,
+                PASSWORD_DEFAULT
+            );
+
+
+            $expires = date(
+                "Y-m-d H:i:s",
+                time()+3600
+            );
+
+
+            $stmt = $db->prepare("
+                INSERT INTO password_resets
+                (
+                    user_id,
+                    token_hash,
+                    expires_at
+                )
+                VALUES(?,?,?)
+            ");
+
+
+            $stmt->execute([
+                $user['id'],
+                $hash,
+                $expires
+            ]);
+
+
+
+            $link =
+            "https://capsule.my.to/auth/reset?token="
+            .$token;
+
+
+
+            try {
+
+                $mail = new PHPMailer(true);
+
+                $mail->isSMTP();
+
+                $mail->Host = MAIL_HOST;
+                $mail->Port = 25;
+
+                $mail->SMTPAuth = true;
+
+                $mail->Username = MAIL_USERNAME;
+                $mail->Password = MAIL_PASSWORD;
+
+                $mail->SMTPSecure = false;
+                $mail->SMTPAutoTLS = false;
+
+                $mail->setFrom(
+                    MAIL_FROM,
+                    "Capsule no-reply"
+                );
+
+
+                $mail->addAddress($email);
+
+
+                $mail->isHTML(true);
+
+
+                $mail->Subject =
+                "Capsule Password Reset";
+
+
+                $mail->Body = "
+                <h2>Reset your password</h2>
+
+                <p>Hello {$user['username']},</p>
+
+                <p>
+                Click the button below to reset your password.
+                </p>
+
+                <a href='$link'>
+                Reset Password
+                </a>
+
+                <p>
+                This link expires in 1 hour.
+                </p>
+                ";
+
+
+                $mail->send();
+
+
+
+            } catch (Exception $e) {
+
+                http_response_code(500);
+
+                echo json_encode([
+                    "status" => "error",
+                    "message" => $e->getMessage(),
+                    "errorInfo" => $mail->ErrorInfo
+                ]);
+
+                exit;
+            }
+
+
+
+            echo json_encode([
+                "status"=>"success",
+                "message"=>"Password reset link has been sent. Please check your e-mail."
+            ]);
+
+        break;
+        // --------------------------------------------------------------------------
+        // RESET PASSWORD
+        // --------------------------------------------------------------------------
+        case 'reset':
+
+            $token = trim($input['token'] ?? '');
+            $password = $input['password'] ?? '';
+
+            if ($token === '' || $password === '') {
+                http_response_code(400);
+                echo json_encode([
+                    "status" => "error",
+                    "message" => "Token and password are required."
+                ]);
+                exit;
+            }
+
+            if (strlen($password) < 6) {
+                http_response_code(400);
+                echo json_encode([
+                    "status" => "error",
+                    "message" => "Password must be at least 6 characters long."
+                ]);
+                exit;
+            }
+
+            // Süresi geçmemiş tüm tokenleri al
+            $stmt = $db->prepare("
+                SELECT *
+                FROM password_resets
+                WHERE expires_at > NOW()
+            ");
+
+            $stmt->execute();
+
+            $reset = null;
+
+            while ($row = $stmt->fetch(PDO::FETCH_ASSOC)) {
+
+                if (password_verify($token, $row['token_hash'])) {
+                    $reset = $row;
+                    break;
+                }
+
+            }
+
+            if (!$reset) {
+                http_response_code(400);
+                echo json_encode([
+                    "status" => "error",
+                    "message" => "Invalid or expired reset token."
+                ]);
+                exit;
+            }
+
+            $passwordHash = password_hash(
+                $password,
+                PASSWORD_BCRYPT
+            );
+
+            // Şifreyi güncelle
+            $stmt = $db->prepare("
+                UPDATE users
+                SET password_hash = ?
+                WHERE id = ?
+            ");
+
+            $stmt->execute([
+                $passwordHash,
+                $reset['user_id']
+            ]);
+
+            // Kullanılan tokeni sil
+            $stmt = $db->prepare("
+                DELETE FROM password_resets
+                WHERE id = ?
+            ");
+
+            $stmt->execute([
+                $reset['id']
+            ]);
+
+            echo json_encode([
+                "status" => "success",
+                "message" => "Your password has been reset successfully."
+            ]);
+
+        break;
     }
     exit;
 }
@@ -205,11 +485,11 @@ $requestUri = parse_url($_SERVER['REQUEST_URI'], PHP_URL_PATH);
 $uriParts = explode('/', rtrim($requestUri, '/'));
 $resolvedAction = end($uriParts);
 
-if (in_array($resolvedAction, ['login', 'register', 'logout'], true)) {
+if (in_array($resolvedAction, ['login', 'register', 'logout', 'forgot', 'reset'], true)) {
     handleAuthApi($resolvedAction);
 } else {
     $fallbackAction = $_GET['action'] ?? $input['action'] ?? '';
-    if (in_array($fallbackAction, ['login', 'register', 'logout'], true)) {
+    if (in_array($fallbackAction, ['login', 'register', 'logout', 'forgot', 'reset'], true)) {
         handleAuthApi($fallbackAction);
     } else {
         http_response_code(400);

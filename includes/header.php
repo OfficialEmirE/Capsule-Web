@@ -1,7 +1,39 @@
+<?php
+$isAdmin = false;
+
+if (isset($_SESSION['user_id'])) {
+
+    try {
+
+        $db = api_db();
+
+        $adminCheck = $db->prepare("
+            SELECT is_admin
+            FROM users
+            WHERE id = ?
+            LIMIT 1
+        ");
+
+        $adminCheck->execute([
+            $_SESSION['user_id']
+        ]);
+
+        $adminUser = $adminCheck->fetch(PDO::FETCH_ASSOC);
+
+        if ($adminUser && (int)$adminUser['is_admin'] === 1) {
+            $isAdmin = true;
+        }
+
+    } catch (Throwable $e) {
+        $isAdmin = false;
+    }
+
+}
+?>  
 <nav class="navbar">
     <div class="navbar-inner">
         <div style="display:flex;align-items:center;">
-            <a href="https://capsule.my.to" class="nav-logo">
+            <a href="http://capsule.my.to" class="nav-logo">
                 <img src="/assets/images/CapsuleLogoBeta.png" alt="Capsule Logo" style="height:28px;">
             </a>
             <ul class="nav-links">
@@ -14,12 +46,45 @@
         </div>
         <div class="nav-right">
             <?php if (isset($_SESSION['user_id'])): ?>
-                <!-- Giriş Yapılmışsa Gösterilecek Kısım -->
-                <span class="nav-welcome" style="margin-right: 5px; font-weight: bold; color: #333; display: inline-flex; align-items: center;">
-                    <a href="/users/<?php echo $_SESSION['user_id']; ?>"><?php echo htmlspecialchars($_SESSION['username']); ?></a>
-                </span>
-                <!-- href yerine JavaScript tetikleyen bir buton yapısı kuruyoruz -->
-                <a href="#" onclick="handleLogout(event)" class="btn-logout" style="text-decoration: none; padding: 5px 10px; border: 1px solid #ccc; border-radius: 3px; background: #f8f8f8; color: #333; font-size: 13px; cursor: pointer;">Log Out</a>
+
+            <span class="nav-welcome" style="margin-right: 5px; font-weight: bold; color: #333; display: inline-flex; align-items: center;">
+                <a href="/users/<?php echo $_SESSION['user_id']; ?>">
+                    <?php echo htmlspecialchars($_SESSION['username']); ?>
+                </a>
+            </span>
+
+
+            <?php if ($isAdmin): ?>
+                <a href="/admin" 
+                style="
+                text-decoration:none;
+                padding:5px 10px;
+                border:1px solid #ccc;
+                border-radius:3px;
+                background:#02b757;
+                color:white;
+                font-size:13px;
+                margin-right:5px;
+                cursor:pointer;">
+                    Admin Panel
+                </a>
+            <?php endif; ?>
+
+
+            <a href="#" 
+            onclick="handleLogout(event)" 
+            class="btn-logout" 
+            style="
+            text-decoration:none;
+            padding:5px 10px;
+            border:1px solid #ccc;
+            border-radius:3px;
+            background:#f8f8f8;
+            color:#333;
+            font-size:13px;
+            cursor:pointer;">
+                Log Out
+            </a>
             <?php else: ?>
                 <!-- Giriş Yapılmamışsa Gösterilecek Kısım -->
                 <a href="/auth/register" class="btn-signup">Sign Up</a>

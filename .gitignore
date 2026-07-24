@@ -1,0 +1,5 @@
+# Bağımlılık klasörünü engelle
+vendor/
+
+# Hassas bilgileri içeren config dosyasını engelle
+api/config.php

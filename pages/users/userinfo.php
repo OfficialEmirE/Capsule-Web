@@ -34,6 +34,62 @@ if (!$userId || !is_numeric($userId)) {
     ob_end_flush(); // Tamponu boşalt ve akışı durdur
     exit;
 }
+
+// --- SUNUCU TARAFINDA VAR OLMA / BAN KONTROLÜ ---
+// Önceden bu kontrol hiç yapılmıyordu; sayfa her zaman render ediliyor,
+// gerçek kontrol sadece client-side fetch'e bırakılmıştı ve fetch başarısız
+// olunca showErrorPage() boş olduğu için sayfa "Loading..." halinde takılı kalıyordu.
+try {
+    $checkDb = api_db();
+    $checkStmt = $checkDb->prepare("
+        SELECT u.id, b.id AS is_banned
+        FROM users u
+        LEFT JOIN user_bans b ON u.id = b.user_id
+          AND b.is_active = 1
+          AND (b.expires_at IS NULL OR b.expires_at > NOW())
+        WHERE u.id = ?
+        LIMIT 1
+    ");
+    $checkStmt->execute([(int)$userId]);
+    $existingUser = $checkStmt->fetch(PDO::FETCH_ASSOC);
+} catch (Throwable $e) {
+    error_log('userinfo.php ban/existence check failed: ' . $e->getMessage());
+    $existingUser = null;
+}
+
+// Kullanıcı yoksa 404
+if (!$existingUser) {
+    http_response_code(404);
+    $errorCode = 404;
+    if (file_exists(ROOT_PATH . 'error.php')) {
+        require ROOT_PATH . 'error.php';
+    } else {
+        header('Content-Type: application/json; charset=utf-8');
+        echo json_encode([
+            'status' => 'error',
+            'message' => 'No such file or directory'
+        ], JSON_UNESCAPED_UNICODE);
+    }
+    ob_end_flush();
+    exit;
+}
+
+// Kullanıcı banlıysa 403
+if ($existingUser['is_banned'] !== null) {
+    http_response_code(403);
+    $errorCode = 403;
+    if (file_exists(ROOT_PATH . 'error.php')) {
+        require ROOT_PATH . 'error.php';
+    } else {
+        header('Content-Type: application/json; charset=utf-8');
+        echo json_encode([
+            'status' => 'error',
+            'message' => 'Forbidden'
+        ], JSON_UNESCAPED_UNICODE);
+    }
+    ob_end_flush();
+    exit;
+}
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -195,6 +251,29 @@ if (!$userId || !is_numeric($userId)) {
                 padding: 20px;
             }
 
+            .report-user-btn {
+                width: 28px;
+                height: 28px;
+                border: 1px solid #c0392b;
+                background: #e74c3c;
+                border-radius: 3px;
+                cursor: pointer;
+                display: none;
+                align-items: center;
+                justify-content: center;
+                padding: 0;
+            }
+
+            .report-user-btn:hover {
+                background: #c0392b;
+            }
+
+            .report-user-btn svg {
+                width: 16px;
+                height: 16px;
+                stroke: #fff;
+            }
+
             /* Düzenleme Alanı Tasarımları */
             .edit-bio-btn {
                 background: #3498db;
@@ -297,6 +376,15 @@ if (!$userId || !is_numeric($userId)) {
                 <div class="profile-panel">
                     <h2>
                         <span id="aboutTitle">About User</span>
+                        <button 
+                            id="reportUserBtn" 
+                            class="report-user-btn"
+                            title="Report User">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <path d="M4 22V4"></path>
+                                <path d="M4 4h14l-2 4 2 4H4"></path>
+                            </svg>
+                        </button>
                         <!-- Yazı yerine sadece kalem SVG ikonu içeren buton -->
                         <button id="editBioBtn" class="edit-bio-btn" title="Edit Biography">
                             <svg viewBox="0 0 24 24" width="16" height="16" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round">
@@ -353,9 +441,21 @@ if (!$userId || !is_numeric($userId)) {
                         originalBio = user.bio ? user.bio : "";
                         updateBioUI(originalBio);
 
-                        // Eğer oturum açmış aktif kullanıcı bu profilin sahibiyse düzenleme butonunu aç
                         if (loggedInUserId && String(loggedInUserId) === String(user.id)) {
+
                             document.getElementById('editBioBtn').style.display = 'inline-block';
+
+                        } else if (loggedInUserId) {
+
+                            var reportBtn = document.getElementById('reportUserBtn');
+
+                            if (reportBtn) {
+                                reportBtn.style.display = 'flex';
+
+                                reportBtn.onclick = function() {
+                                    window.location.href = "/report?user=" + encodeURIComponent(user.id);
+                                };
+                            }
                         }
 
                         // Kayıt Tarihi Formatla (YYYY-MM-DD -> Jan 12, 2013)

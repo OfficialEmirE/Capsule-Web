@@ -13,9 +13,10 @@ if (session_status() === PHP_SESSION_NONE) {
 error_reporting(E_ALL);
 ini_set('display_errors', '1');
 
-// --- CLOUDFLARE TURNSTILE CONFIGURATION ---
-// Sadece sunucu tarafında doğrulamada kullanılacak gizli anahtar
-define('TURNSTILE_SECRET_KEY', '0x4AAAAAADuauhYZp9qMveb1L5vTbhQvgJQ');
+define('MAIL_HOST', 'free.mboxhosting.com');
+define('MAIL_USERNAME', 'noreply@capsule.my.to');
+define('MAIL_PASSWORD', 'Er030303?!');
+define('MAIL_FROM', 'noreply@capsule.my.to');
 
 /**
  * Veritabanı bağlantısını sağlayan ve PDO instance döndüren çekirdek fonksiyon
