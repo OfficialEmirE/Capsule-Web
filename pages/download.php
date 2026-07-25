@@ -15,7 +15,7 @@
             <div class="top-row">
                 <div class="featured-game">
                     <div style="width: 600px;">
-                        <h2>Download</h2>
+                        <h2>Download (not working)</h2>
                         <p>Download the <b>Capsule Beta</b> Client or Studio for your platform below.</p>
                         
                         <!-- Resmi yanında "Download Client for Windows" yazsın. ve yazının tıklanabilir gibi gözüksün.-->
