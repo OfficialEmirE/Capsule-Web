@@ -119,6 +119,12 @@ switch ($module) {
         require_once ROOT_PATH . 'api/v1/reporter.php';
         handleReporterApi($apiAction);
         exit;
+    case 'assets':
+    case 'asset':
+        $apiAction = $apiParts[3] ?? '';
+        require_once ROOT_PATH . 'api/v1/assets.php';
+        handleAssetsApi($apiAction);
+        exit;
     default:
         if (ob_get_length() > 0) {
             ob_end_clean();
