@@ -20,8 +20,8 @@ $loggedInUserId = $_SESSION['id'] ?? $_SESSION['user_id'] ?? null;
 // Hata durumunu en başta kontrol et
 if (!$userId || !is_numeric($userId)) {
     if (file_exists(ROOT_PATH . 'error.php')) {
-        http_response_code(404); // Hata kodunu set et
-        $errorCode = 404;        // error.php'nin kullanması için değişken tanımla
+        http_response_code(404);
+        $errorCode = 404;
         require ROOT_PATH . 'error.php';
     } else {
         http_response_code(404);
@@ -31,14 +31,11 @@ if (!$userId || !is_numeric($userId)) {
             'message' => 'No such file or directory'
         ], JSON_UNESCAPED_UNICODE);
     }
-    ob_end_flush(); // Tamponu boşalt ve akışı durdur
+    ob_end_flush();
     exit;
 }
 
 // --- SUNUCU TARAFINDA VAR OLMA / BAN KONTROLÜ ---
-// Önceden bu kontrol hiç yapılmıyordu; sayfa her zaman render ediliyor,
-// gerçek kontrol sadece client-side fetch'e bırakılmıştı ve fetch başarısız
-// olunca showErrorPage() boş olduğu için sayfa "Loading..." halinde takılı kalıyordu.
 try {
     $checkDb = api_db();
     $checkStmt = $checkDb->prepare("
@@ -57,7 +54,6 @@ try {
     $existingUser = null;
 }
 
-// Kullanıcı yoksa 404
 if (!$existingUser) {
     http_response_code(404);
     $errorCode = 404;
@@ -74,7 +70,6 @@ if (!$existingUser) {
     exit;
 }
 
-// Kullanıcı banlıysa 403
 if ($existingUser['is_banned'] !== null) {
     http_response_code(403);
     $errorCode = 403;
@@ -101,7 +96,6 @@ if ($existingUser['is_banned'] !== null) {
         <?php include ROOT_PATH . 'includes/icon.php'; ?>
         <link rel="stylesheet" href="/assets/css/Capsule.css">
 
-        <!-- PROFIL SAYFASINA ÖZEL STYLES -->
         <style>
             .profile-container {
                 width: 970px;
@@ -111,7 +105,6 @@ if ($existingUser['is_banned'] !== null) {
                 gap: 20px;
             }
 
-            /* Sol Sütun (Profil Kartı ve İstatistikler) */
             .profile-sidebar {
                 display: flex;
                 flex-direction: column;
@@ -124,10 +117,9 @@ if ($existingUser['is_banned'] !== null) {
                 border-radius: 6px;
                 padding: 15px;
                 text-align: center;
-                position: relative; /* Durum göstergesinin hizalanabilmesi için */
+                position: relative;
             }
 
-            /* Doğrudan HTML'e gömülecek SVG'nin Alanı */
             .avatar-svg-container {
                 width: 120px;
                 height: 120px;
@@ -151,7 +143,7 @@ if ($existingUser['is_banned'] !== null) {
                 position: absolute;
                 top: 15px;
                 right: 15px;
-                background: #7f8c8d; /* Varsayılan Çevrimdışı */
+                background: #7f8c8d;
                 transition: background 0.3s ease;
                 z-index: 3;
             }
@@ -200,7 +192,6 @@ if ($existingUser['is_banned'] !== null) {
                 margin-bottom: 0;
             }
 
-            /* Sağ Sütun (Hakkında) */
             .profile-main-content {
                 display: flex;
                 flex-direction: column;
@@ -234,7 +225,6 @@ if ($existingUser['is_banned'] !== null) {
                 white-space: pre-wrap;
             }
 
-            /* Otomatik linkler için ekstra stil */
             .profile-description a {
                 color: #3498db;
                 text-decoration: none;
@@ -274,7 +264,6 @@ if ($existingUser['is_banned'] !== null) {
                 stroke: #fff;
             }
 
-            /* Düzenleme Alanı Tasarımları */
             .edit-bio-btn {
                 background: #3498db;
                 color: #fff;
@@ -284,7 +273,7 @@ if ($existingUser['is_banned'] !== null) {
                 border-radius: 3px;
                 cursor: pointer;
                 font-weight: normal;
-                display: none; /* JS ile sahibiyse gösterilecek */
+                display: none;
                 transition: background 0.2s;
             }
 
@@ -344,13 +333,8 @@ if ($existingUser['is_banned'] !== null) {
         <?php include ROOT_PATH . 'includes/header.php'; ?>
 
         <div class="profile-container">
-            
-            <!-- Sol Sütun -->
             <div class="profile-sidebar">
-                
-                <!-- Profil Kartı -->
                 <div class="profile-card">
-                    <!-- SVG nesnesini JS ile dolduracağımız boş kapsayıcı -->
                     <div id="avatarContainer" class="avatar-svg-container"></div>
                     <div id="statusIndicator" class="profile-status-indicator" title="Offline"></div>
                     
@@ -358,7 +342,6 @@ if ($existingUser['is_banned'] !== null) {
                     <div class="profile-bio-short">User ID: #<?php echo (int)$userId; ?></div>
                 </div>
 
-                <!-- İstatistikler -->
                 <div class="profile-statistics">
                     <h3>Statistics</h3> 
                     <div class="stat-row">
@@ -366,13 +349,9 @@ if ($existingUser['is_banned'] !== null) {
                         <strong id="statJoinDate">-</strong> 
                     </div>
                 </div>
-
             </div>
 
-            <!-- Sağ Sütun -->
             <div class="profile-main-content">
-                
-                <!-- Hakkında (Biography) -->
                 <div class="profile-panel">
                     <h2>
                         <span id="aboutTitle">About User</span>
@@ -385,7 +364,6 @@ if ($existingUser['is_banned'] !== null) {
                                 <path d="M4 4h14l-2 4 2 4H4"></path>
                             </svg>
                         </button>
-                        <!-- Yazı yerine sadece kalem SVG ikonu içeren buton -->
                         <button id="editBioBtn" class="edit-bio-btn" title="Edit Biography">
                             <svg viewBox="0 0 24 24" width="16" height="16" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round">
                                 <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path>
@@ -394,12 +372,10 @@ if ($existingUser['is_banned'] !== null) {
                         </button>
                     </h2>
                     
-                    <!-- Biyografi Görüntüleme Alanı -->
                     <div class="profile-description" id="profileBio">
                         <div class="loading-skeleton">Loading bio...</div>
                     </div>
 
-                    <!-- Biyografi Düzenleme Form Alanı (Gizli Başlar) -->
                     <div id="bioEditContainer" style="display: none;">
                         <textarea id="bioTextarea" class="bio-edit-textarea" placeholder="Write something about yourself..."></textarea>
                         <div class="bio-action-container">
@@ -408,21 +384,17 @@ if ($existingUser['is_banned'] !== null) {
                         </div>
                     </div>
                 </div>
-
             </div>
-            
         </div>
 
         <?php include ROOT_PATH . 'includes/bottom.php'; ?>
 
-        <!-- TAMAMEN JAVASCRIPT ODAKLI API ENTEGRASYONU -->
         <script>
         (function() {
             var userId = <?php echo json_encode((string)$userId); ?>;
             var loggedInUserId = <?php echo json_encode((string)$loggedInUserId); ?>;
-            var originalBio = ""; // Değişiklik iptali için orijinal veriyi burada tutuyoruz
+            var originalBio = "";
 
-            // 1. KULLANICI BİLGİLERİNİ ÇEKELİM
             fetch('/api/v1/users/info?id=' + encodeURIComponent(userId))
                 .then(function(res) {
                     if (!res.ok) throw new Error("User not found");
@@ -432,40 +404,32 @@ if ($existingUser['is_banned'] !== null) {
                     if (data && data.status === 'success' && data.user) {
                         var user = data.user;
                         
-                        // Sayfa Başlığını Güncelle
                         document.title = escapeHtml(user.username) + "'s Profile - Capsule Beta";
                         document.getElementById('profileUsername').textContent = user.username;
                         document.getElementById('aboutTitle').textContent = "About " + user.username;
                         
-                        // Biyografi Ayarla
                         originalBio = user.bio ? user.bio : "";
                         updateBioUI(originalBio);
 
                         if (loggedInUserId && String(loggedInUserId) === String(user.id)) {
-
                             document.getElementById('editBioBtn').style.display = 'inline-block';
-
                         } else if (loggedInUserId) {
-
                             var reportBtn = document.getElementById('reportUserBtn');
-
                             if (reportBtn) {
                                 reportBtn.style.display = 'flex';
-
+                                // REPORT YÖNLENDİRMESİ
                                 reportBtn.onclick = function() {
-                                    window.location.href = "/report?user=" + encodeURIComponent(user.id);
+                                    window.location.href = "/report?user_id=" + encodeURIComponent(user.id) + "&username=" + encodeURIComponent(user.username);
                                 };
                             }
                         }
 
-                        // Kayıt Tarihi Formatla (YYYY-MM-DD -> Jan 12, 2013)
                         if (user.created_at) {
                             var date = new Date(user.created_at);
                             var options = { year: 'numeric', month: 'short', day: 'numeric' };
                             document.getElementById('statJoinDate').textContent = date.toLocaleDateString('en-US', options);
                         }
 
-                        // 2. ARKA PLANDA SVG DOSYASINI ALALIM, BOYAYALIM VE HTML'E YAZALIM
                         var targetColor = user.avatar ? user.avatar : '#ffffff';
                         
                         fetch('/assets/images/body.svg')
@@ -473,13 +437,11 @@ if ($existingUser['is_banned'] !== null) {
                                 return svgRes.text();
                             })
                             .then(function(svgText) {
-                                // Gelen SVG düz metnini (DOM) olarak parse edelim
                                 var parser = new DOMParser();
                                 var svgDoc = parser.parseFromString(svgText, "image/svg+xml");
                                 var svgElement = svgDoc.querySelector('svg');
 
                                 if (svgElement) {
-                                    // SVG içindeki tüm PATH elemanlarını ayıklayıp sadece beyaz olanları boyayalım
                                     var paths = svgElement.querySelectorAll('path');
                                     paths.forEach(function(path) {
                                         var fill = (path.getAttribute('fill') || '').toLowerCase();
@@ -496,7 +458,6 @@ if ($existingUser['is_banned'] !== null) {
                                         }
                                     });
 
-                                    // Boyanmış SVG'yi doğrudan HTML içine basıyoruz! 
                                     var container = document.getElementById('avatarContainer');
                                     if (container) {
                                         container.innerHTML = '';
@@ -505,10 +466,9 @@ if ($existingUser['is_banned'] !== null) {
                                 }
                             })
                             .catch(function(svgErr) {
-                                console.error("SVG fetch/parse hatası: ", svgErr);
+                                console.error("SVG fetch/parse error: ", svgErr);
                             });
 
-                        // Çevrimiçi / Çevrimdışı Durumu
                         var statusIndicator = document.getElementById('statusIndicator');
                         if (statusIndicator) {
                             if (user.is_online) {
@@ -529,7 +489,6 @@ if ($existingUser['is_banned'] !== null) {
                     showErrorPage();
                 });
 
-            // --- BİYOGRAFİ DÜZENLEME INTERAKTİF İŞLEMLERİ ---
             var editBtn = document.getElementById('editBioBtn');
             var cancelBtn = document.getElementById('cancelBioBtn');
             var saveBtn = document.getElementById('saveBioBtn');
@@ -537,7 +496,6 @@ if ($existingUser['is_banned'] !== null) {
             var editContainer = document.getElementById('bioEditContainer');
             var textarea = document.getElementById('bioTextarea');
 
-            // Düzenleme modunu aç
             if (editBtn) {
                 editBtn.addEventListener('click', function() {
                     bioView.style.display = 'none';
@@ -548,7 +506,6 @@ if ($existingUser['is_banned'] !== null) {
                 });
             }
 
-            // İptal Et
             if (cancelBtn) {
                 cancelBtn.addEventListener('click', function() {
                     editContainer.style.display = 'none';
@@ -557,7 +514,6 @@ if ($existingUser['is_banned'] !== null) {
                 });
             }
 
-            // Verileri Kaydet ve API'ye POST et
             if (saveBtn) {
                 saveBtn.addEventListener('click', function() {
                     var updatedText = textarea.value;
@@ -585,7 +541,6 @@ if ($existingUser['is_banned'] !== null) {
                             originalBio = updatedText;
                             updateBioUI(originalBio);
                             
-                            // Arayüzü eski haline getir
                             editContainer.style.display = 'none';
                             bioView.style.display = 'block';
                             editBtn.style.display = 'inline-block';
@@ -603,19 +558,14 @@ if ($existingUser['is_banned'] !== null) {
                 });
             }
 
-            // Biyografi UI güncelleyici ve HTTP linkleri algılayıp otomatik a etiketi yapan fonksiyon
             function updateBioUI(bioContent) {
                 var container = document.getElementById('profileBio');
                 if (!container) return;
 
                 if (bioContent && bioContent.trim() !== "") {
-                    // Güvenlik için önce XSS korumasını çalıştırıyoruz
                     var escaped = escapeHtml(bioContent);
-
-                    // HTTP ve HTTPS linklerini tespit eden regex deseni
                     var linkRegex = /(https?:\/\/[^\s]+)/g;
 
-                    // Yakalanan linkleri tıklanabilir hale getir (Target blank & rel noopener güvenlik için)
                     var linkedContent = escaped.replace(linkRegex, function(url) {
                         return '<a href="' + url + '" target="_blank" rel="noopener noreferrer">' + url + '</a>';
                     });
@@ -626,7 +576,6 @@ if ($existingUser['is_banned'] !== null) {
                 }
             }
 
-            // Yardımcı Fonksiyonlar
             function escapeHtml(str) {
                 if (str == null) return '';
                 var div = document.createElement('div');
@@ -635,8 +584,7 @@ if ($existingUser['is_banned'] !== null) {
             }
 
             function showErrorPage() {
-                // Hata yönlendirmesi gerekiyorsa açılabilir
-                // window.location.href = "/error?code=404";
+                // error handling
             }
         })();
         </script>

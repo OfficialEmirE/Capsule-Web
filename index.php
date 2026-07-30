@@ -4,187 +4,146 @@ declare(strict_types=1);
 
 /*
 |--------------------------------------------------------------------------
-| MUTLAK YOL TANIMLAMASI
-|--------------------------------------------------------------------------
-| Bu sabit, bu dosyanın bulunduğu ana dizini tam yol olarak tutar.
-| Dosya yüklemelerinde ve require/include işlemlerinde hata payını sıfırlar.
-*/
-define('ROOT_PATH', __DIR__ . '/');
-
-// Bağımsız çalışmalarda veritabanı fonksiyonunun kaybolmaması için config'i bağlıyoruz
-require_once ROOT_PATH . 'api/config.php';
-
-// Composer paketlerini otomatik yüklemek için:
-if (file_exists(ROOT_PATH . 'vendor/autoload.php')) {
-    require_once ROOT_PATH . 'vendor/autoload.php';
-}
-
-/*
-|--------------------------------------------------------------------------
-| URL PARSING
+| 1. HTTP -> HTTPS VE TEMEL REDIRECTS (En Hızlı Başlatma)
 |--------------------------------------------------------------------------
 */
-$uri = $_SERVER['REQUEST_URI'] ?? '/';
-$uri = explode('?', $uri)[0];
-$uri = trim($uri, '/');
-$uri_parts = explode('/', $uri);
-
-/*
-|--------------------------------------------------------------------------
-| GLOBAL VARIABLES INITIALIZATION
-|--------------------------------------------------------------------------
-| Tanımsız değişken (Undefined variable) hatalarını önlemek için router genelinde
-| kullanılan bayrakları (flags) varsayılan olarak false çekiyoruz.
-*/
-$is_whitelisted = false;
-$is_blocked = false;
-
-/*
-|--------------------------------------------------------------------------
-| AUTOMATIC BAN CONTROL & ROUTING (BEYAZ LİSTE MEKANİZMASI)
-|--------------------------------------------------------------------------
-*/
-
-// Banlı kullanıcının kesinlikle erişebilmesi gereken rotalar
-$ban_whitelist = [
-    'api/v1/auth/logout',
-    'termsofuse',
-    'privacypolicy',
-    'auth/reset'    // Eğer ileride bunu kullanırsan diye yedek
-];
-
-// Gelen URI'yi temizle ve küçük harfe zorla
-$current_uri_clean = strtolower(trim($uri, '/'));
-
-$is_whitelisted = false;
-foreach ($ban_whitelist as $white_route) {
-    $white_route_clean = strtolower(trim($white_route, '/'));
-    
-    // Tam eşleşme veya alt dizin kontrolü
-    if ($current_uri_clean === $white_route_clean || str_starts_with($current_uri_clean, $white_route_clean . '/')) {
-        $is_whitelisted = true;
-        break;
-    }
-}
-
-// Kullanıcı giriş yapmışsa ve whitelist'te DEĞİLSE ban kontrolünü çalıştır
-if (isset($_SESSION['user_id']) && !$is_whitelisted) {
-    try {
-        $db = api_db();
-        $banCheck = $db->prepare("
-            SELECT id FROM user_bans 
-            WHERE user_id = ? AND is_active = 1 
-            AND (expires_at IS NULL OR expires_at > NOW())
-            LIMIT 1
-        ");
-        $banCheck->execute([$_SESSION['user_id']]);
-        
-        if ($banCheck->fetch()) {
-            // Eğer banlıysa ve normal bir sayfa istiyorsa banned.php'ye yönlendir
-            require ROOT_PATH . 'pages/banned.php';
-            exit;
-        }
-    } catch (Exception $e) {
-        // DB hatası durumunda çökme
-    }
-}
-
-/*
-|--------------------------------------------------------------------------
-| HTTPS -> HTTP YÖNLENDİRMESİ
-|--------------------------------------------------------------------------
-| Projenin SSL (HTTPS) yerine HTTP protokolü üzerinden çalışmasını zorlar.
-*/
+// SSL Yönlendirmesini en üste aldık ki veritabanı vs. boşuna yüklenmesin.
 if ((isset($_SERVER['HTTPS']) && $_SERVER['HTTPS'] === 'on') || 
     (isset($_SERVER['HTTP_X_FORWARDED_PROTO']) && $_SERVER['HTTP_X_FORWARDED_PROTO'] === 'https')) {
-    
-    $redirect_url = "http://" . $_SERVER['HTTP_HOST'] . $_SERVER['REQUEST_URI'];
-    header("Location: " . $redirect_url, true, 301);
+    header("Location: http://" . $_SERVER['HTTP_HOST'] . $_SERVER['REQUEST_URI'], true, 301);
     exit;
 }
 
+define('ROOT_PATH', __DIR__ . '/');
+
 /*
 |--------------------------------------------------------------------------
-| HOME & STATIC PAGES YÖNLENDİRMESİ
+| 2. URL PARSING & HIZLI KARA/BEYAZ LİSTE
 |--------------------------------------------------------------------------
 */
+$raw_uri = $_SERVER['REQUEST_URI'] ?? '/';
+$uri = strtok($raw_uri, '?'); // explode yerine çok daha hızlı strtok
+$uri = strtolower(trim($uri, '/'));
+
 if ($uri === 'index.php') {
     header("Location: /", true, 301);
     exit;
 }
 
-// Ana sayfa kuralı veya doğrudan /pages/home çağrısı
+// O(1) Karmaşıklığı için Dizi Anahtarı (Key) Mantığı
+$ban_whitelist = [
+    'api/v1/auth/logout' => true,
+    'termsofuse'          => true,
+    'privacypolicy'       => true,
+    'auth/reset'          => true
+];
+
+$blacklist = [
+    'users/userinfo' => true,
+    'pages/banned'   => true,
+    'pages/banned.php' => true
+];
+
+// Kara liste kontrolü
+if (isset($blacklist[$uri])) {
+    render404();
+}
+
+/*
+|--------------------------------------------------------------------------
+| 3. OTURUM VE BAN KONTROLÜ (SESSION CACHE - MAX SPEED)
+|--------------------------------------------------------------------------
+*/
+if (session_status() === PHP_SESSION_NONE) {
+    session_start();
+}
+
+$is_whitelisted = isset($ban_whitelist[$uri]);
+
+if (isset($_SESSION['user_id']) && !$is_whitelisted) {
+    // Sitenin yavaşlamasını engellemek için ban bilgisini Session'da saklıyoruz
+    if (!isset($_SESSION['is_banned_cached_at']) || (time() - $_SESSION['is_banned_cached_at']) > 60) {
+        require_once ROOT_PATH . 'api/config.php';
+        try {
+            $db = api_db();
+            $banCheck = $db->prepare("
+                SELECT id FROM user_bans 
+                WHERE user_id = ? AND is_active = 1 
+                AND (expires_at IS NULL OR expires_at > NOW())
+                LIMIT 1
+            ");
+            $banCheck->execute([$_SESSION['user_id']]);
+            
+            $_SESSION['is_banned'] = (bool)$banCheck->fetchColumn();
+            $_SESSION['is_banned_cached_at'] = time(); // 60 saniyede bir DB'yi kontrol eder
+        } catch (Exception $e) {
+            $_SESSION['is_banned'] = false;
+        }
+    }
+
+    if (!empty($_SESSION['is_banned'])) {
+        require ROOT_PATH . 'pages/banned.php';
+        exit;
+    }
+}
+
+/*
+|--------------------------------------------------------------------------
+| 4. ROUTER MAPPING & STATIC ROUTES
+|--------------------------------------------------------------------------
+*/
+// Autoload ve Config sadece ihtiyaç olursa çağrılsın
+require_once ROOT_PATH . 'api/config.php';
+if (file_exists(ROOT_PATH . 'vendor/autoload.php')) {
+    require_once ROOT_PATH . 'vendor/autoload.php';
+}
+
+// Ana Sayfa Rotaları
 if ($uri === '' || $uri === 'pages/home') {
     require ROOT_PATH . 'pages/home.php';
     exit;
 }
 
-// Eğer banlı değilse ve doğrudan /banned sayfasına erişmek istiyorsa burası yakalar
 if ($uri === 'banned') {
     require ROOT_PATH . 'pages/banned.php';
     exit;
 }
 
-/*
-|--------------------------------------------------------------------------
-| API V1 GATEWAY (Direkt 404 Kuralı Dahil)
-|--------------------------------------------------------------------------
-*/
-if (isset($uri_parts[0]) && $uri_parts[0] === 'api') {
-    
-    // Eğer /api/v1 yapısı tam kurulmadıysa (v1 eksikse veya alt indisler yoksa) direkt 404 bas
-    if (!isset($uri_parts[1]) || $uri_parts[1] !== 'v1') {
+// API Gateway (O(1) Kontrol)
+if (str_starts_with($uri, 'api/')) {
+    if (!str_starts_with($uri, 'api/v1')) {
         http_response_code(404);
         header('Content-Type: application/json; charset=utf-8');
-        echo json_encode([
-            'status' => 'error',
-            'message' => 'No such file or directory'
-        ], JSON_UNESCAPED_UNICODE);
+        echo json_encode(['status' => 'error', 'message' => 'No such file or directory'], JSON_UNESCAPED_UNICODE);
         exit;
     }
-
-    // /api/v1/... ile başlayan tüm geçerli istekleri alt index'e pasla
     require ROOT_PATH . 'api/v1/index.php';
     exit;
 }
 
-/*
-|--------------------------------------------------------------------------
-| USER PAGE
-|--------------------------------------------------------------------------
-*/
-if (isset($uri_parts[0]) && $uri_parts[0] === 'users' && isset($uri_parts[1]) && is_numeric($uri_parts[1])) {
-    $id = (int)$uri_parts[1]; // ID'yi yakaladık ve güvenli olması için integer'a zorladık
-    require ROOT_PATH . '/pages/users/userinfo.php';
+// User Page Route
+$uri_parts = explode('/', $uri);
+if (($uri_parts[0] ?? '') === 'users' && isset($uri_parts[1]) && is_numeric($uri_parts[1])) {
+    $id = (int)$uri_parts[1];
+    require ROOT_PATH . 'pages/users/userinfo.php';
+    exit;
+}
+
+// Dinamik Sayfa Yükleme (pages/*.php)
+$page_file = ROOT_PATH . 'pages/' . $uri . '.php';
+if (file_exists($page_file)) {
+    require $page_file;
     exit;
 }
 
 /*
 |--------------------------------------------------------------------------
-| ROUTE BLACKLIST (KARA LİSTE) KONTROLÜ
+| 5. 404 NOT FOUND HANDLER
 |--------------------------------------------------------------------------
-| pages/banned.php dosyasına doğrudan URL manipülasyonu ile erişimi engellemek 
-| için listeye ekledik.
 */
-$blacklist = [
-    'users/userinfo',
-    'pages/banned',
-];
+render404();
 
-// Gelen URI'yi hem doğrudan, hem de sonuna .php ekleyerek ya da çıkartarak temiz bir şekilde kontrol edelim
-$clean_uri = strtolower($uri);
-$uri_with_ext = str_ends_with($clean_uri, '.php') ? $clean_uri : $clean_uri . '.php';
-$uri_no_ext = str_ends_with($clean_uri, '.php') ? substr($clean_uri, 0, -4) : $clean_uri;
-
-foreach ($blacklist as $blocked_route) {
-    $blocked_route_clean = strtolower(trim($blocked_route, '/'));
-    if ($clean_uri === $blocked_route_clean || $uri_with_ext === $blocked_route_clean || $uri_no_ext === $blocked_route_clean) {
-        $is_blocked = true;
-        break;
-    }
-}
-
-if ($is_blocked) {
+function render404(): void {
     http_response_code(404);
     $errorCode = 404;
 
@@ -192,37 +151,7 @@ if ($is_blocked) {
         require ROOT_PATH . 'error.php';
     } else {
         header('Content-Type: application/json; charset=utf-8');
-        echo json_encode([
-            'status' => 'error',
-            'message' => 'No such file or directory'
-        ], JSON_UNESCAPED_UNICODE);
+        echo json_encode(['status' => 'error', 'message' => 'No such file or directory'], JSON_UNESCAPED_UNICODE);
     }
     exit;
 }
-
-// Alternatif: pages/ klasörü altında bir sayfa çağrılıyorsa (Örn: /hakkimizda -> pages/hakkimizda.php)
-$page_file = 'pages/' . $uri . '.php';
-if (file_exists(ROOT_PATH . $page_file)) {
-    require ROOT_PATH . $page_file;
-    exit;
-}
-
-/*
-|--------------------------------------------------------------------------
-| 404 NOT FOUND
-|--------------------------------------------------------------------------
-*/
-http_response_code(404);
-$errorCode = 404;
-
-if (file_exists(ROOT_PATH . 'error.php')) {
-    require ROOT_PATH . 'error.php';
-} else {
-    header('Content-Type: application/json; charset=utf-8');
-    echo json_encode([
-        'status' => 'error',
-        'message' => 'No such file or directory'
-    ], JSON_UNESCAPED_UNICODE);
-    exit;
-}
-exit;

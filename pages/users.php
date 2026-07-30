@@ -1,8 +1,6 @@
 <?php
-// 1. Çıktı tamponlamayı başlat
 ob_start();
 
-// Eğer projede tanımlı değilse ROOT_PATH ayarla
 if (!defined('ROOT_PATH')) {
     define('ROOT_PATH', $_SERVER['DOCUMENT_ROOT'] . '/');
 }
@@ -17,7 +15,6 @@ if (!defined('ROOT_PATH')) {
         <?php include ROOT_PATH . 'includes/icon.php'; ?>
         <link rel="stylesheet" href="/assets/css/Capsule.css">
 
-        <!-- KULLANICI LİSTESİNE ÖZEL STYLES -->
         <style>
             .members-container {
                 width: 970px;
@@ -40,7 +37,6 @@ if (!defined('ROOT_PATH')) {
                 align-items: center;
             }
 
-            /* Sağ Üst Arama Kutusu */
             .search-box-wrapper {
                 display: flex;
                 align-items: center;
@@ -89,14 +85,12 @@ if (!defined('ROOT_PATH')) {
                 align-items: center;
             }
 
-            /* Izgara Düzeni (Grid) */
             .members-grid {
                 display: grid;
                 grid-template-columns: repeat(4, 1fr);
                 gap: 15px;
             }
 
-            /* Kullanıcı Kartı */
             .member-card {
                 background: var(--panel);
                 border: 1px solid var(--panel-border);
@@ -117,7 +111,6 @@ if (!defined('ROOT_PATH')) {
                 box-shadow: 0 4px 8px rgba(0, 0, 0, 0.05);
             }
 
-            /* Kart İçi Avatar Alanı */
             .member-avatar-container {
                 width: 80px;
                 height: 80px;
@@ -146,7 +139,6 @@ if (!defined('ROOT_PATH')) {
                 color: var(--muted);
             }
 
-            /* Sayfalama (Pagination) */
             .pagination-container {
                 display: flex;
                 justify-content: center;
@@ -207,26 +199,22 @@ if (!defined('ROOT_PATH')) {
                     <h2>Users</h2>
                     <span id="totalMembers" class="total-members-badge">Loading...</span>
                 </div>
-                <!-- Arama Arayüzü (Butonsuz) -->
                 <div class="search-box-wrapper">
                     <a id="searchReset" class="search-reset" style="display: none;">[Reset]</a>
                     <input type="text" id="searchQuery" class="search-input" placeholder="Search username...">
                 </div>
             </div>
 
-            <!-- Kullanıcı Kartlarının Geleceği Alan -->
             <div id="membersGrid" class="members-grid">
                 <div class="loading-text">Loading members...</div>
             </div>
 
-            <!-- Sayfalama (Pagination) Alanı -->
             <div id="pagination" class="pagination-container"></div>
 
         </div>
 
         <?php include ROOT_PATH . 'includes/bottom.php'; ?>
 
-        <!-- DINAMIK KULLANICI LISTESI SCRIPT'I -->
         <script>
         (function() {
             var urlParams = new URLSearchParams(window.location.search);
@@ -240,15 +228,13 @@ if (!defined('ROOT_PATH')) {
             var searchReset = document.getElementById('searchReset');
             
             var bodySvgTemplate = "";
-            var searchTimeout = null; // Debounce zamanlayıcısı
+            var searchTimeout = null;
 
-            // Arama kutusunun durumunu başlangıçta doldur
             if (currentSearch) {
                 searchQueryInput.value = currentSearch;
                 searchReset.style.display = 'inline';
             }
 
-            // Önce avatar şablonunu çekelim
             fetch('/assets/images/body.svg')
                 .then(function(res) {
                     return res.text();
@@ -262,12 +248,10 @@ if (!defined('ROOT_PATH')) {
                     loadMembers(currentPage, currentSearch);
                 });
 
-            // Kullanıcıları API'den çeken ana fonksiyon
             function loadMembers(page, search) {
-                var url = '/api/v1/users/list?page=' + page;
-                if (search) {
-                    url += '&search=' + encodeURIComponent(search);
-                }
+                var url = search 
+                    ? '/api/v1/users/search?q=' + encodeURIComponent(search) + '&page=' + page
+                    : '/api/v1/users/list?page=' + page;
 
                 membersGrid.innerHTML = '<div class="loading-text">Loading members...</div>';
 
@@ -280,7 +264,7 @@ if (!defined('ROOT_PATH')) {
                         if (data && data.status === 'success') {
                             renderUsers(data.users);
                             renderPagination(data.pagination, search);
-                            totalMembersBadge.textContent = data.pagination.total_users + " Total Users";
+                            totalMembersBadge.textContent = (data.pagination.total_users || 0) + " Total Users";
                         } else {
                             showError("An error occurred while loading users.");
                         }
@@ -291,11 +275,10 @@ if (!defined('ROOT_PATH')) {
                     });
             }
 
-            // Kullanıcı kartlarını HTML'e basan fonksiyon
             function renderUsers(users) {
                 membersGrid.innerHTML = '';
 
-                if (users.length === 0) {
+                if (!users || users.length === 0) {
                     membersGrid.innerHTML = '<div class="loading-text">No registered users found.</div>';
                     return;
                 }
@@ -350,23 +333,20 @@ if (!defined('ROOT_PATH')) {
                 });
             }
 
-            // Sayfalama (Pagination) butonlarını üreten fonksiyon
             function renderPagination(meta, search) {
                 pagination.innerHTML = '';
-                var totalPages = meta.total_pages;
-                var current = meta.current_page;
+                var totalPages = meta.total_pages || 1;
+                var current = meta.current_page || 1;
                 var searchParam = search ? '&q=' + encodeURIComponent(search) : '';
 
                 if (totalPages <= 1) return;
 
-                // Önceki Sayfa butonu
                 var prevBtn = document.createElement('a');
                 prevBtn.className = 'page-btn' + (current === 1 ? ' disabled' : '');
                 prevBtn.textContent = '« Prev';
                 if (current > 1) prevBtn.href = '?page=' + (current - 1) + searchParam;
                 pagination.appendChild(prevBtn);
 
-                // Sayfa Numaraları
                 for (var i = 1; i <= totalPages; i++) {
                     var pageBtn = document.createElement('a');
                     pageBtn.className = 'page-btn' + (i === current ? ' active' : '');
@@ -375,7 +355,6 @@ if (!defined('ROOT_PATH')) {
                     pagination.appendChild(pageBtn);
                 }
 
-                // Sonraki Sayfa butonu
                 var nextBtn = document.createElement('a');
                 nextBtn.className = 'page-btn' + (current === totalPages ? ' disabled' : '');
                 nextBtn.textContent = 'Next »';
@@ -383,7 +362,6 @@ if (!defined('ROOT_PATH')) {
                 pagination.appendChild(nextBtn);
             }
 
-            // Arama tetikleyici ana fonksiyon
             function triggerSearch() {
                 var query = searchQueryInput.value.trim();
                 
@@ -393,25 +371,19 @@ if (!defined('ROOT_PATH')) {
                     searchReset.style.display = 'none';
                 }
 
-                // URL'yi güncelliyoruz ve yeni sayfa içeriğini çekiyoruz
                 var newUrl = window.location.pathname + '?page=1' + (query ? '&q=' + encodeURIComponent(query) : '');
                 window.history.pushState({ path: newUrl }, '', newUrl);
                 
                 loadMembers(1, query);
             }
 
-            // Giriş Alanı Olay Dinleyicisi (Debounced Input)
             searchQueryInput.addEventListener('input', function() {
-                // Önceki zamanlayıcıyı sıfırla
                 clearTimeout(searchTimeout);
-                
-                // Kullanıcı yazmayı bıraktıktan 300ms sonra tetikle
                 searchTimeout = setTimeout(function() {
                     triggerSearch();
                 }, 300);
             });
 
-            // Reset Buton Olay Dinleyicisi
             searchReset.addEventListener('click', function() {
                 searchQueryInput.value = '';
                 searchReset.style.display = 'none';

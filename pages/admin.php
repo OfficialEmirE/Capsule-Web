@@ -5,7 +5,7 @@ if (!defined('ROOT_PATH')) {
     define('ROOT_PATH', __DIR__ . '/'); 
 }
 
-// Include config (API configuration, session parameters, and DB methods are already handled inside)
+// Config dosyasını dahil ediyoruz
 $configPath = ROOT_PATH . 'api/config.php';
 if (!file_exists($configPath)) {
     header('Content-Type: application/json; charset=utf-8');
@@ -15,134 +15,238 @@ if (!file_exists($configPath)) {
 }
 require_once $configPath;
 
-/// --- SECURITY & AUTHORIZATION CHECK ---
+if (session_status() === PHP_SESSION_NONE) {
+    session_start();
+}
+
+// --- SECURITY & AUTHORIZATION CHECK ---
 if (!isset($_SESSION['user_id'])) {
     header("Location: /auth/login");
     exit;
 }
 
-try {
-    $db = api_db();
+$currentUserId = (int)$_SESSION['user_id'];
+$isAdmin = false;
 
-    $stmt = $db->prepare("
-        SELECT is_admin
-        FROM users
-        WHERE id = ?
-        LIMIT 1
-    ");
-    $stmt->execute([$_SESSION['user_id']]);
+// API sunucusunun URL'sini tespit etme
+$protocol = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') ? "https://" : "http://";
+$host = $_SERVER['HTTP_HOST'] ?? 'localhost';
+$apiUrl = $protocol . $host . "/api/v1/users/info?id=" . $currentUserId;
 
-    $currentUser = $stmt->fetch(PDO::FETCH_ASSOC);
+$ch = curl_init();
+curl_setopt($ch, CURLOPT_URL, $apiUrl);
+curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
 
-    if (!$currentUser || (int)$currentUser['is_admin'] !== 1) {
-        http_response_code(403);
-        exit('Forbidden');
+if (isset($_COOKIE[session_name()])) {
+    curl_setopt($ch, CURLOPT_COOKIE, session_name() . '=' . $_COOKIE[session_name()]);
+}
+curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
+curl_setopt($ch, CURLOPT_TIMEOUT, 5);
+
+$apiResponse = curl_exec($ch);
+$httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+curl_close($ch);
+
+if ($httpCode === 200 && $apiResponse) {
+    $userData = json_decode($apiResponse, true);
+    if (isset($userData['status'], $userData['user']['is_admin']) && $userData['status'] === 'success') {
+        $isAdmin = ((int)$userData['user']['is_admin'] === 1);
     }
+} else {
+    try {
+        $dbFallback = api_db();
+        $stmtFallback = $dbFallback->prepare("SELECT is_admin FROM users WHERE id = ? LIMIT 1");
+        $stmtFallback->execute([$currentUserId]);
+        $rowFallback = $stmtFallback->fetch(PDO::FETCH_ASSOC);
+        if ($rowFallback && (int)$rowFallback['is_admin'] === 1) {
+            $isAdmin = true;
+        }
+    } catch (Throwable $e) {
+        $isAdmin = false;
+    }
+}
 
-} catch (Throwable $e) {
-    http_response_code(500);
-    exit('Database error');
+if (!$isAdmin) {
+    if (!headers_sent()) {
+        http_response_code(403);
+    }
+    exit('Forbidden: Admin access required.');
 }
 
 $actionMessage = "";
 $actionStatus = "";
 
 try {
-    // --- HANDLE POST ACTIONS (BAN / UNBAN / WARNING) ---
-    if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'], $_POST['target_username'])) {
-        $targetUser = trim($_POST['target_username']);
-        $action = $_POST['action'];
+    $db = api_db();
 
-        // Find user ID from username
-        $userStmt = $db->prepare("SELECT id FROM users WHERE username = ?");
-        $userStmt->execute([$targetUser]);
-        $userData = $userStmt->fetch();
+    // --- HANDLE POST ACTIONS (BAN / UNBAN / WARNING / RESOLVE REPORT) ---
+    if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+        if (isset($_POST['action'], $_POST['target_username'])) {
+            $targetUser = trim($_POST['target_username']);
+            $action = $_POST['action'];
 
-        if ($userData) {
-            $userId = (int)$userData['id'];
+            $userStmt = $db->prepare("SELECT id FROM users WHERE username = ?");
+            $userStmt->execute([$targetUser]);
+            $userData = $userStmt->fetch();
 
-            if ($action === 'ban') {
-                $reason = trim($_POST['reason'] ?? 'No reason provided');
-                $durationHours = (int)($_POST['duration'] ?? 0); // 0 means permanent
+            if ($userData) {
+                $userId = (int)$userData['id'];
 
-                // Deactivate any existing active bans/warnings first
-                $deactivate = $db->prepare("UPDATE user_bans SET is_active = 0 WHERE user_id = ?");
-                $deactivate->execute([$userId]);
+                if ($action === 'ban') {
+                    $reason = trim($_POST['reason'] ?? 'No reason provided');
+                    $durationHours = (int)($_POST['duration'] ?? 0);
 
-                // Calculate expiry time
-                $expiresAt = null;
-                if ($durationHours > 0) {
-                    $expiresAt = date('Y-m-d H:i:s', strtotime("+{$durationHours} hours"));
+                    $deactivate = $db->prepare("UPDATE user_bans SET is_active = 0 WHERE user_id = ?");
+                    $deactivate->execute([$userId]);
+
+                    $expiresAt = null;
+                    if ($durationHours > 0) {
+                        $expiresAt = date('Y-m-d H:i:s', strtotime("+{$durationHours} hours"));
+                    }
+
+                    $insertBan = $db->prepare("INSERT INTO user_bans (user_id, reason, banned_at, expires_at, is_active) VALUES (?, ?, NOW(), ?, 1)");
+                    $insertBan->execute([$userId, $reason, $expiresAt]);
+
+                    $actionMessage = "User '{$targetUser}' has been successfully banned.";
+                    $actionStatus = "success";
+                } 
+                elseif ($action === 'warning') {
+                    $reason = trim($_POST['reason'] ?? 'No reason provided');
+                    $warningReason = "[WARNING] " . $reason;
+                    
+                    $durationHours = (int)($_POST['duration'] ?? 0);
+                    $expiresAt = null;
+                    if ($durationHours > 0) {
+                        $expiresAt = date('Y-m-d H:i:s', strtotime("+{$durationHours} hours"));
+                    }
+
+                    $deactivate = $db->prepare("UPDATE user_bans SET is_active = 0 WHERE user_id = ?");
+                    $deactivate->execute([$userId]);
+
+                    $insertWarning = $db->prepare("INSERT INTO user_bans (user_id, reason, banned_at, expires_at, is_active) VALUES (?, ?, NOW(), ?, 1)");
+                    $insertWarning->execute([$userId, $warningReason, $expiresAt]);
+
+                    $actionMessage = "User '{$targetUser}' has been officially warned.";
+                    $actionStatus = "warning";
+                } 
+                elseif ($action === 'unban') {
+                    $unbanStmt = $db->prepare("UPDATE user_bans SET is_active = 0 WHERE user_id = ?");
+                    $unbanStmt->execute([$userId]);
+
+                    $actionMessage = "All active bans and warnings for '{$targetUser}' have been lifted.";
+                    $actionStatus = "success";
                 }
-
-                // Insert new ban record
-                $insertBan = $db->prepare("INSERT INTO user_bans (user_id, reason, expires_at, is_active) VALUES (?, ?, ?, 1)");
-                $insertBan->execute([$userId, $reason, $expiresAt]);
-
-                $actionMessage = "User '{$targetUser}' has been successfully banned.";
-                $actionStatus = "success";
-            } 
-            // --- YENİ EKLENEN UYARI (WARNING) MANTIĞI ---
-            elseif ($action === 'warning') {
-                $reason = trim($_POST['reason'] ?? 'No reason provided');
-                // Sebebin başına uyarı olduğunu belirten bir etiket ekliyoruz ki UI'da ayırt edilebilsin
-                $warningReason = "[WARNING] " . $reason;
-                
-                // Uyarılar genellikle kalıcı hesap kapatması olmadığı için kısa süreli (örn: 24 saat) veya direkt süresiz bir uyarı kartı olabilir.
-                // İstersen duration alanından gelen saati uyarının ekranda kalma süresi yapabilirsin:
-                $durationHours = (int)($_POST['duration'] ?? 0);
-                $expiresAt = null;
-                if ($durationHours > 0) {
-                    $expiresAt = date('Y-m-d H:i:s', strtotime("+{$durationHours} hours"));
-                }
-
-                // Mevcut aktif cezaları temizleyip yeni uyarı kaydı atıyoruz
-                $deactivate = $db->prepare("UPDATE user_bans SET is_active = 0 WHERE user_id = ?");
-                $deactivate->execute([$userId]);
-
-                $insertWarning = $db->prepare("INSERT INTO user_bans (user_id, reason, expires_at, is_active) VALUES (?, ?, ?, 1)");
-                $insertWarning->execute([$userId, $warningReason, $expiresAt]);
-
-                $actionMessage = "User '{$targetUser}' has been officially warned.";
-                $actionStatus = "warning"; // CSS'de sarı renk gösterecek
-            } 
-            elseif ($action === 'unban') {
-                // Lift ban/warning by deactivating active records
-                $unbanStmt = $db->prepare("UPDATE user_bans SET is_active = 0 WHERE user_id = ?");
-                $unbanStmt->execute([$userId]);
-
-                $actionMessage = "All active bans and warnings for '{$targetUser}' have been lifted.";
-                $actionStatus = "success";
+            } else {
+                $actionMessage = "User not found.";
+                $actionStatus = "error";
             }
-        } else {
-            $actionMessage = "User not found.";
-            $actionStatus = "error";
+        } elseif (isset($_POST['resolve_report_id'])) {
+            $reportId = (int)$_POST['resolve_report_id'];
+            $updateReport = $db->prepare("UPDATE reports SET status = 'resolved' WHERE id = ?");
+            $updateReport->execute([$reportId]);
+            $actionMessage = "Report #{$reportId} marked as resolved.";
+            $actionStatus = "success";
         }
     }
 
-    // 1. Total Registered Users
+    // --- İSTATİSTİKLER ---
     $totalUsers = $db->query("SELECT COUNT(*) FROM users")->fetchColumn();
-
-    // 2. Active Users in Last 24 Hours
     $active24h = $db->query("SELECT COUNT(*) FROM users WHERE last_login >= NOW() - INTERVAL 1 DAY")->fetchColumn();
+    
+    // Aktif Ban/Uyarı Sayısını Hesaplama
+    $bannedUsersCount = $db->query("SELECT COUNT(DISTINCT user_id) FROM user_bans WHERE is_active = 1 AND (expires_at IS NULL OR expires_at > NOW())")->fetchColumn();
 
-    // 3. Current Active Banned Users Count
-    $bannedUsers = $db->query("SELECT COUNT(DISTINCT user_id) FROM user_bans WHERE is_active = 1 AND (expires_at IS NULL OR expires_at > NOW())")->fetchColumn();
-
-    // 4. Total Captchas Solved (Falls back to total users if table doesn't exist)
     try {
-        $totalCaptchas = $db->query("SELECT COUNT(*) FROM captcha_logs")->fetchColumn();
+        $totalGames = $db->query("SELECT COUNT(*) FROM games")->fetchColumn();
     } catch (Exception $e) {
-        $totalCaptchas = $totalUsers; 
+        $totalGames = 0;
     }
 
-    // 5. Recent 10 Registered Users
-    $recentUsers = $db->query("SELECT id, username, email, avatar, last_login FROM users ORDER BY id DESC LIMIT 10")->fetchAll();
+    // --- TABLO VERİLERİ ---
+    $page = isset($_GET['page']) ? max(1, (int)$_GET['page']) : 1;
+    $limit = 10;
+    $offset = ($page - 1) * $limit;
+
+    // 1. Tüm Kullanıcılar
+    $allUsersStmt = $db->prepare("SELECT id, username, email, avatar, last_login, created_at FROM users ORDER BY id DESC LIMIT ? OFFSET ?");
+    $allUsersStmt->bindValue(1, $limit, PDO::PARAM_INT);
+    $allUsersStmt->bindValue(2, $offset, PDO::PARAM_INT);
+    $allUsersStmt->execute();
+    $allUsers = $allUsersStmt->fetchAll(PDO::FETCH_ASSOC);
+
+    // 2. En Son Aktif Kullanıcılar
+    $lastActiveUsers = $db->query("SELECT id, username, email, avatar, last_login FROM users WHERE last_login IS NOT NULL ORDER BY last_login DESC LIMIT 10")->fetchAll(PDO::FETCH_ASSOC);
+
+    // 3. Oyunlar Listesi
+    try {
+        $gamesList = $db->query("
+            SELECT 
+                g.id, 
+                g.name, 
+                g.max_players, 
+                g.public, 
+                u.username as owner_name 
+            FROM games g 
+            LEFT JOIN users u ON g.ownerUserId = u.id 
+            ORDER BY g.id DESC 
+            LIMIT 10
+        ")->fetchAll(PDO::FETCH_ASSOC);
+    } catch (Exception $e) {
+        $gamesList = [];
+    }
+
+    // 4. Banlanan / Uyarı Alan Kullanıcılar Listesi
+    try {
+        $bannedUsersList = $db->query("
+            SELECT 
+                b.id as ban_id,
+                b.reason,
+                b.banned_at,
+                b.expires_at,
+                b.is_active,
+                u.id as user_id,
+                u.username,
+                u.avatar
+            FROM user_bans b
+            JOIN users u ON b.user_id = u.id
+            WHERE b.is_active = 1 AND (b.expires_at IS NULL OR b.expires_at > NOW())
+            ORDER BY b.id DESC
+        ")->fetchAll(PDO::FETCH_ASSOC);
+    } catch (Exception $e) {
+        $bannedUsersList = [];
+    }
+
+    // 5. Gelen Raporlar Listesi (Reports Table - Hedef kullanıcı adı ve oyun adı eklendi)
+    try {
+        $reportsList = $db->query("
+            SELECT 
+                r.id,
+                r.target_type,
+                r.target_id,
+                r.reason,
+                r.details,
+                r.status,
+                r.created_at,
+                u_reporter.username AS reporter_name,
+                u_target.username AS target_username,
+                g_target.name AS target_game_name
+            FROM reports r
+            LEFT JOIN users u_reporter ON r.reporter_user_id = u_reporter.id
+            LEFT JOIN users u_target ON (r.target_type = 'user' AND r.target_id = u_target.id)
+            LEFT JOIN games g_target ON (r.target_type = 'game' AND r.target_id = g_target.id)
+            ORDER BY r.id DESC
+            LIMIT 20
+        ")->fetchAll(PDO::FETCH_ASSOC);
+    } catch (Exception $e) {
+        $reportsList = [];
+    }
 
 } catch (Exception $e) {
-    header('Content-Type: application/json; charset=utf-8');
-    http_response_code(500);
-    echo json_encode(['status' => 'error', 'message' => 'Database error occurred']);
+    if (!headers_sent()) {
+        header('Content-Type: application/json; charset=utf-8');
+        http_response_code(500);
+    }
+    echo json_encode(['status' => 'error', 'message' => 'Database error occurred: ' . $e->getMessage()]);
     exit;
 }
 ?>
@@ -180,10 +284,26 @@ try {
         .alert-warning { background: #fcf8e3; color: #8a6d3b; border: 1px solid #faebcc; }
         .alert-error { background: #f2dede; color: #a94442; border: 1px solid #ebccd1; }
 
-        .activity-table { width: 100%; border-collapse: collapse; margin-top: 15px; background: #fff; border: 1px solid #ddd; }
+        .admin-tabs { display: flex; gap: 5px; border-bottom: 2px solid #ddd; margin-bottom: 15px; flex-wrap: wrap; }
+        .tab-btn { padding: 8px 16px; background: #eee; border: 1px solid #ddd; border-bottom: none; cursor: pointer; font-weight: bold; font-size: 13px; border-radius: 4px 4px 0 0; }
+        .tab-btn.active { background: #fff; border-color: #ddd #ddd #fff #ddd; color: #02b757; margin-bottom: -2px; }
+        .tab-content { display: none; }
+        .tab-content.active { display: block; }
+
+        .activity-table { width: 100%; border-collapse: collapse; background: #fff; border: 1px solid #ddd; }
         .activity-table th, .activity-table td { border: 1px solid #ddd; padding: 10px; text-align: left; font-size: 13px; }
         .activity-table th { background: #f2f2f2; font-weight: bold; }
         .user-avatar-dot { width: 12px; height: 12px; display: inline-block; border-radius: 50%; border: 1px solid #999; margin-right: 6px; vertical-align: middle; }
+
+        .pagination { margin-top: 10px; display: flex; gap: 5px; justify-content: flex-end; }
+        .pagination a { padding: 4px 8px; border: 1px solid #ccc; background: #f9f9f9; text-decoration: none; color: #333; font-size: 12px; border-radius: 3px; }
+        .pagination a.active { background: #02b757; color: white; border-color: #02b757; }
+        
+        .badge { padding: 3px 6px; font-size: 11px; font-weight: bold; border-radius: 3px; color: #fff; }
+        .badge-danger { background-color: #d9534f; }
+        .badge-warning { background-color: #f0ad4e; }
+        .badge-info { background-color: #5bc0de; }
+        .badge-success { background-color: #5cb85c; }
     </style>
 </head>
 <body>
@@ -212,17 +332,16 @@ try {
                     <p><?php echo $active24h; ?></p>
                 </div>
                 <div class="stat-box">
-                    <h3>Active Bans / Warnings</h3>
-                    <p style="color: #d9534f;"><?php echo $bannedUsers; ?></p>
+                    <h3>Total Games</h3>
+                    <p style="color: #337ab7;"><?php echo $totalGames; ?></p>
                 </div>
-                <!--<div class="stat-box">
-                    <h3>Altcha Solved</h3>
-                    <p style="color: #f0ad4e;"><?php echo $totalCaptchas; ?></p>
-                </div> -->  
+                <div class="stat-box">
+                    <h3>Active Bans / Warnings</h3>
+                    <p style="color: #d9534f;"><?php echo $bannedUsersCount; ?></p>
+                </div>
             </div>
 
             <div class="tools-grid">
-                <!-- Advanced Moderation Tool -->
                 <div class="tool-card">
                     <h3>Advanced Moderation Tool</h3>
                     <form method="POST" action="">
@@ -247,54 +366,296 @@ try {
                 </div>
 
                 <div class="tool-card">
-                    <h3>Environment Info</h3>
-                    <ul style="margin: 0; padding-left: 20px; font-size: 12px; line-height: 1.8; color: #555;">
-                        <li><strong>PHP Version:</strong> <?php echo PHP_VERSION; ?></li>
-                        <li><strong>Server Time:</strong> <?php echo date('Y-m-d H:i:s'); ?></li>
-                        <li><strong>Secure Session:</strong> <?php echo isset($_SERVER['HTTPS']) ? 'Yes' : 'No'; ?></li>
-                    </ul>
+                    <h3>Quick Moderation Actions</h3>
+                    <div style="font-size: 12px; color: #555; line-height: 1.6;">
+                        <p style="margin-top: 0; margin-bottom: 10px;">
+                            <strong>Note:</strong> Set duration to <code>0</code> for permanent restrictions.
+                        </p>
+                        <div class="form-group" style="margin-bottom: 10px;">
+                            <label style="font-weight: bold;">Quick User Search:</label>
+                            <div style="display: flex; gap: 5px;">
+                                <input type="number" id="quick_user_id" class="form-control" placeholder="User ID..." min="1">
+                                <button type="button" class="btn-admin btn-success" onclick="goToUserProfile()">Go</button>
+                            </div>
+                        </div>
+                        <ul style="margin: 0; padding-left: 18px; color: #666; font-size: 11px;">
+                            <li><strong>Warnings:</strong> Prefix reasons with <code>[WARNING]</code>.</li>
+                            <li><strong>Unban:</strong> Lifts all active bans and warnings for the user.</li>
+                        </ul>
+                    </div>
                 </div>
             </div>
 
-            <h3>Recent User Registrations</h3>
-            <table class="activity-table">
-                <thead>
-                    <tr>
-                        <th style="width: 60px;">ID</th>
-                        <th>Username</th>
-                        <th>Email</th>
-                        <th>Last Login</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    <?php if (empty($recentUsers)): ?>
+            <!-- SEKMELER (TABS) -->
+            <div class="admin-tabs">
+                <button class="tab-btn active" onclick="openTab(event, 'all-users')">User List</button>
+                <button class="tab-btn" onclick="openTab(event, 'last-active')">Last Active Users</button>
+                <button class="tab-btn" onclick="openTab(event, 'banned-users')">Banned & Warned Users (<?php echo count($bannedUsersList); ?>)</button>
+                <button class="tab-btn" onclick="openTab(event, 'games-list')">Games List</button>
+                <button class="tab-btn" onclick="openTab(event, 'reports-list')">Reports List (<?php echo count($reportsList); ?>)</button>
+            </div>
+
+            <!-- TAB 1: TÜM KULLANICILAR -->
+            <div id="all-users" class="tab-content active">
+                <h3>Registered Users List</h3>
+                <table class="activity-table">
+                    <thead>
                         <tr>
-                            <td colspan="4" style="text-align: center; color: #777;">No users found.</td>
+                            <th style="width: 60px;">ID</th>
+                            <th>Username</th>
+                            <th>Email</th>
+                            <th>Registration Date</th>
+                            <th>Last Login</th>
                         </tr>
-                    <?php else: ?>
-                        <?php foreach ($recentUsers as $user): ?>
-                            <tr>
-                                <td>#<?php echo $user['id']; ?></td>
-                                <td>
-                                    <span class="user-avatar-dot" style="background-color: <?php echo htmlspecialchars($user['avatar'] ?? '#ccc'); ?>;"></span>
-                                    <strong><?php echo htmlspecialchars($user['username']); ?></strong>
-                                </td>
-                                <td><?php echo htmlspecialchars($user['email'] ?? 'N/A'); ?></td>
-                                <td>
-                                    <?php 
-                                        echo $user['last_login'] 
-                                            ? date('Y-m-d H:i', strtotime($user['last_login'])) 
-                                            : 'Never'; 
-                                    ?>
-                                </td>
-                            </tr>
-                        <?php endforeach; ?>
-                    <?php endif; ?>
-                </tbody>
-            </table>
+                    </thead>
+                    <tbody>
+                        <?php if (empty($allUsers)): ?>
+                            <tr><td colspan="5" style="text-align: center; color: #777;">No users found.</td></tr>
+                        <?php else: ?>
+                            <?php foreach ($allUsers as $user): ?>
+                                <tr>
+                                    <td>#<?php echo $user['id']; ?></td>
+                                    <td>
+                                        <a href="/users/<?php echo $user['id']; ?>" target="_blank" style="text-decoration: none; color: inherit;">
+                                            <span class="user-avatar-dot" style="background-color: <?php echo htmlspecialchars($user['avatar'] ?? '#ccc'); ?>;"></span>
+                                            <strong><?php echo htmlspecialchars($user['username']); ?></strong>
+                                        </a>
+                                    </td>
+                                    <td><?php echo htmlspecialchars($user['email'] ?? 'N/A'); ?></td>
+                                    <td><?php echo isset($user['created_at']) ? date('Y-m-d H:i', strtotime($user['created_at'])) : 'N/A'; ?></td>
+                                    <td><?php echo $user['last_login'] ? date('Y-m-d H:i', strtotime($user['last_login'])) : 'Never'; ?></td>
+                                </tr>
+                            <?php endforeach; ?>
+                        <?php endif; ?>
+                    </tbody>
+                </table>
+                <div class="pagination">
+                    <?php 
+                    $totalPages = ceil($totalUsers / $limit);
+                    for ($i = 1; $i <= $totalPages; $i++): ?>
+                        <a href="?page=<?php echo $i; ?>" class="<?php echo $page === $i ? 'active' : ''; ?>"><?php echo $i; ?></a>
+                    <?php endfor; ?>
+                </div>
+            </div>
+
+            <!-- TAB 2: EN SON AKTİF OLAN KULLANICILAR -->
+            <div id="last-active" class="tab-content">
+                <h3>Last Active Users</h3>
+                <table class="activity-table">
+                    <thead>
+                        <tr>
+                            <th style="width: 60px;">ID</th>
+                            <th>Username</th>
+                            <th>Email</th>
+                            <th>Last Active Time</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <?php if (empty($lastActiveUsers)): ?>
+                            <tr><td colspan="4" style="text-align: center; color: #777;">No active user data.</td></tr>
+                        <?php else: ?>
+                            <?php foreach ($lastActiveUsers as $activeUser): ?>
+                                <tr>
+                                    <td>#<?php echo $activeUser['id']; ?></td>
+                                    <td>
+                                        <a href="/users/<?php echo $activeUser['id']; ?>" target="_blank" style="text-decoration: none; color: inherit;">
+                                            <span class="user-avatar-dot" style="background-color: <?php echo htmlspecialchars($activeUser['avatar'] ?? '#ccc'); ?>;"></span>
+                                            <strong><?php echo htmlspecialchars($activeUser['username']); ?></strong>
+                                        </a>
+                                    </td>
+                                    <td><?php echo htmlspecialchars($activeUser['email'] ?? 'N/A'); ?></td>
+                                    <td><span style="color: #02b757; font-weight: bold;"><?php echo date('Y-m-d H:i:s', strtotime($activeUser['last_login'])); ?></span></td>
+                                </tr>
+                            <?php endforeach; ?>
+                        <?php endif; ?>
+                    </tbody>
+                </table>
+            </div>
+
+            <!-- TAB 3: BANLANAN / UYARI ALAN KULLANICILAR LİSTESİ -->
+            <div id="banned-users" class="tab-content">
+                <h3>Banned & Warned Users</h3>
+                <table class="activity-table">
+                    <thead>
+                        <tr>
+                            <th style="width: 60px;">User ID</th>
+                            <th>Username</th>
+                            <th>Type</th>
+                            <th>Reason</th>
+                            <th>Ban/Warn Date</th>
+                            <th>Expires At</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <?php if (empty($bannedUsersList)): ?>
+                            <tr><td colspan="6" style="text-align: center; color: #777;">No active bans or warnings found.</td></tr>
+                        <?php else: ?>
+                            <?php foreach ($bannedUsersList as $banned): ?>
+                                <?php $isWarning = (strpos($banned['reason'], '[WARNING]') === 0); ?>
+                                <tr>
+                                    <td>#<?php echo $banned['user_id']; ?></td>
+                                    <td>
+                                        <a href="/users/<?php echo $banned['user_id']; ?>" target="_blank" style="text-decoration: none; color: inherit;">
+                                            <span class="user-avatar-dot" style="background-color: <?php echo htmlspecialchars($banned['avatar'] ?? '#ccc'); ?>;"></span>
+                                            <strong><?php echo htmlspecialchars($banned['username']); ?></strong>
+                                        </a>
+                                    </td>
+                                    <td>
+                                        <?php if ($isWarning): ?>
+                                            <span class="badge badge-warning">WARNING</span>
+                                        <?php else: ?>
+                                            <span class="badge badge-danger">BAN</span>
+                                        <?php endif; ?>
+                                    </td>
+                                    <td><?php echo htmlspecialchars($banned['reason']); ?></td>
+                                    <td><?php echo date('Y-m-d H:i', strtotime($banned['banned_at'])); ?></td>
+                                    <td>
+                                        <?php 
+                                        if (empty($banned['expires_at'])) {
+                                            echo '<span style="color: #d9534f; font-weight: bold;">Permanent</span>';
+                                        } else {
+                                            echo date('Y-m-d H:i', strtotime($banned['expires_at']));
+                                        }
+                                        ?>
+                                    </td>
+                                </tr>
+                            <?php endforeach; ?>
+                        <?php endif; ?>
+                    </tbody>
+                </table>
+            </div>
+
+            <!-- TAB 4: OYUNLAR LİSTESİ -->
+            <div id="games-list" class="tab-content">
+                <h3>Recent Games</h3>
+                <table class="activity-table">
+                    <thead>
+                        <tr>
+                            <th style="width: 60px;">Game ID</th>
+                            <th>Game Title</th>
+                            <th>Creator (Owner)</th>
+                            <th>Max Players</th>
+                            <th>Visibility</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <?php if (empty($gamesList)): ?>
+                            <tr><td colspan="5" style="text-align: center; color: #777;">No games found.</td></tr>
+                        <?php else: ?>
+                            <?php foreach ($gamesList as $game): ?>
+                                <tr>
+                                    <td>#<?php echo $game['id']; ?></td>
+                                    <td>
+                                        <strong>
+                                            <a href="/games/info?id=<?php echo $game['id']; ?>" target="_blank" style="color: #095fb8; text-decoration: none;">
+                                                <?php echo htmlspecialchars($game['name']); ?>
+                                            </a>
+                                        </strong>
+                                    </td>
+                                    <td><?php echo htmlspecialchars($game['owner_name'] ?? 'System / Unknown'); ?></td>
+                                    <td><?php echo (int)($game['max_players'] ?? 0); ?> Players</td>
+                                    <td>
+                                        <?php if ((int)($game['public'] ?? 1) === 1): ?>
+                                            <span style="color: #02b757; font-weight: bold;">Public</span>
+                                        <?php else: ?>
+                                            <span style="color: #d9534f; font-weight: bold;">Private</span>
+                                        <?php endif; ?>
+                                    </td>
+                                </tr>
+                            <?php endforeach; ?>
+                        <?php endif; ?>
+                    </tbody>
+                </table>
+            </div>
+
+            <!-- TAB 5: ŞİKAYETLER VE RAPORLAR (REPORTS LIST) -->
+            <div id="reports-list" class="tab-content">
+                <h3>User & Game Reports</h3>
+                <table class="activity-table">
+                    <thead>
+                        <tr>
+                            <th style="width: 50px;">ID</th>
+                            <th>Reporter</th>
+                            <th>Type</th>
+                            <th>Target</th>
+                            <th>Reason</th>
+                            <th>Details</th>
+                            <th>Date</th>
+                            <th>Action</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <?php if (empty($reportsList)): ?>
+                            <tr><td colspan="8" style="text-align: center; color: #777;">No reports submitted yet.</td></tr>
+                        <?php else: ?>
+                            <?php foreach ($reportsList as $report): ?>
+                                <tr>
+                                    <td>#<?php echo $report['id']; ?></td>
+                                    <td><strong><?php echo htmlspecialchars($report['reporter_name'] ?? 'Anonymous/Deleted'); ?></strong></td>
+                                    <td>
+                                        <span class="badge <?php echo ($report['target_type'] ?? '') === 'user' ? 'badge-info' : 'badge-warning'; ?>">
+                                            <?php echo strtoupper(htmlspecialchars($report['target_type'] ?? 'UNKNOWN')); ?>
+                                        </span>
+                                    </td>
+                                    <td>
+                                        <?php if (($report['target_type'] ?? '') === 'user'): ?>
+                                            <a href="/users/<?php echo $report['target_id']; ?>" target="_blank" style="text-decoration: none;">
+                                                <strong><?php echo htmlspecialchars($report['target_username'] ?? ('User #' . $report['target_id'])); ?></strong>
+                                            </a>
+                                        <?php else: ?>
+                                            <a href="/games/info?id=<?php echo $report['target_id']; ?>" target="_blank" style="text-decoration: none;">
+                                                <strong><?php echo htmlspecialchars($report['target_game_name'] ?? ('Game #' . $report['target_id'])); ?></strong>
+                                            </a>
+                                        <?php endif; ?>
+                                    </td>
+                                    <td><code><?php echo htmlspecialchars($report['reason'] ?? ''); ?></code></td>
+                                    <td><small><?php echo !empty($report['details']) ? htmlspecialchars($report['details']) : '<em>No details provided</em>'; ?></small></td>
+                                    <td><?php echo isset($report['created_at']) ? date('Y-m-d H:i', strtotime($report['created_at'])) : 'N/A'; ?></td>
+                                    <td>
+                                        <?php if (($report['status'] ?? 'pending') === 'resolved'): ?>
+                                            <span class="badge badge-success">Resolved</span>
+                                        <?php else: ?>
+                                            <form method="POST" action="" style="display:inline;">
+                                                <input type="hidden" name="resolve_report_id" value="<?php echo $report['id']; ?>">
+                                                <button type="submit" class="btn-admin btn-success" style="padding: 2px 6px; font-size: 10px;">Mark Resolved</button>
+                                            </form>
+                                        <?php endif; ?>
+                                    </td>
+                                </tr>
+                            <?php endforeach; ?>
+                        <?php endif; ?>
+                    </tbody>
+                </table>
+            </div>
+
         </div>
     </div>
 
     <?php include ROOT_PATH . 'includes/bottom.php'; ?>
+
+    <script>
+        function openTab(evt, tabName) {
+            var i, tabcontent, tablinks;
+            tabcontent = document.getElementsByClassName("tab-content");
+            for (i = 0; i < tabcontent.length; i++) {
+                tabcontent[i].classList.remove("active");
+            }
+            tablinks = document.getElementsByClassName("tab-btn");
+            for (i = 0; i < tablinks.length; i++) {
+                tablinks[i].classList.remove("active");
+            }
+            document.getElementById(tabName).classList.add("active");
+            evt.currentTarget.classList.add("active");
+        }
+
+        function goToUserProfile() {
+            var userId = document.getElementById('quick_user_id').value;
+            if (userId && userId > 0) {
+                window.open('/users/' + userId, '_blank');
+            } else {
+                alert('Please enter a valid User ID');
+            }
+        }
+    </script>
 </body>
 </html>

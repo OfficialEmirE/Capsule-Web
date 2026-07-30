@@ -165,6 +165,7 @@
         text-align:center;
         color:var(--muted);
         font-size:13px;
+        grid-column: span 4;
     }
 
     .games-error{
@@ -223,7 +224,7 @@
         <h1>Games</h1>
 
         <div class="search">
-            <input type="text" placeholder="Search Games">
+            <input type="text" id="gameSearchInput" placeholder="Search Games">
         </div>
     </div>
 
@@ -271,22 +272,23 @@
 
 <script>
 (function () {
-    var API_BASE = 'http://capsule.my.to/api/v1/games/list';
-    
-    // Aynı kullanıcıyı tekrar tekrar çekmemek için basit bir Client-Side Cache
     var userCache = {};
 
     var gridEl = document.getElementById('gamesGrid');
     var pagerEl = document.getElementById('gamesPagination');
+    var searchInput = document.getElementById('gameSearchInput');
+    var searchTimeout = null;
 
-    function getPageFromUrl() {
+    function getParamsFromUrl() {
         var params = new URLSearchParams(window.location.search);
-        var page = parseInt(params.get('page'), 10);
-        return (page && page > 0) ? page : 1;
+        return {
+            page: parseInt(params.get('page'), 10) || 1,
+            query: params.get('q') || ''
+        };
     }
 
     function getThumbnail(game) {
-        return "https://placehold.co/170x110?text=Beta+Fature";
+        return "https://placehold.co/170x110?text=Beta+Feature";
     }
 
     function escapeHtml(str) {
@@ -295,9 +297,6 @@
         return div.innerHTML;
     }
 
-    /**
-     * Users API'sinden kullanıcı adını çekerek DOM'daki ilgili alanı günceller.
-     */
     function resolveAndRenderCreator(userId, placeholderId) {
         if (!userId) {
             var el = document.getElementById(placeholderId);
@@ -305,20 +304,17 @@
             return;
         }
 
-        // 1. Durum: Bilgi zaten önbellekte (Cache) mevcutsa doğrudan DOM'a yaz
         if (userCache[userId]) {
             updateCreatorElement(placeholderId, userId, userCache[userId]);
             return;
         }
 
-        // 2. Durum: Önbellekte yoksa Users API'yi sorgula
         fetch('/api/v1/users/info?id=' + encodeURIComponent(userId))
             .then(function (res) {
                 return res.ok ? res.json() : null;
             })
             .then(function (data) {
                 if (data && data.status === 'success' && data.user) {
-                    // Çekilen veriyi cache'e yaz
                     userCache[userId] = data.user.username;
                     updateCreatorElement(placeholderId, userId, data.user.username);
                 } else {
@@ -330,9 +326,6 @@
             });
     }
 
-    /**
-     * İlgili kartın yapımcı HTML yapısını güncelleyen yardımcı fonksiyon
-     */
     function updateCreatorElement(elementId, userId, username) {
         var el = document.getElementById(elementId);
         if (el) {
@@ -346,13 +339,12 @@
 
     function renderGames(games) {
         if (!games || games.length === 0) {
-            gridEl.innerHTML = '<div class="games-empty">No games available yet.</div>';
+            gridEl.innerHTML = '<div class="games-empty">No games found.</div>';
             return;
         }
 
         var html = '';
         games.forEach(function (game) {
-            // Veritabanındaki yapımcı kolon ismine göre id'yi yakala (ownerUserId veya creator_id)
             var creatorId = game.ownerUserId || game.creator_id || null;
             var placeholderId = 'creator-placeholder-' + game.id;
             
@@ -360,7 +352,6 @@
                 + '<div class="game-card">'
                 + '<img src="' + escapeHtml(getThumbnail(game)) + '" alt="' + escapeHtml(game.name) + '">'
                 + '<div class="game-title"><a href="/games/info?id=' + encodeURIComponent(game.id) + '">' + escapeHtml(game.name) + '</a></div>'
-                // Başlangıçta "Loading..." gösteriyoruz, hemen ardından resolve tetiklenecek
                 + '<div class="creator" id="' + placeholderId + '">by <span style="color: var(--muted);">Loading...</span></div>'
                 + '<div class="players">'
                 + '<span>Max ' + escapeHtml(game.max_players) + ' players</span>'
@@ -368,9 +359,7 @@
                 + '</div>'
                 + '</div>';
 
-            // HTML henüz DOM'a eklenmediği için tarayıcının render etmesinden hemen sonra resolve işlemini çağırıyoruz
             setTimeout(function() {
-                // Eğer API'den halihazırda "owner" objesi dolu geldiyse doğrudan cache'e yazalım
                 if (game.owner && game.owner.username) {
                     userCache[creatorId] = game.owner.username;
                 }
@@ -381,14 +370,15 @@
         gridEl.innerHTML = html;
     }
 
-    function renderPagination(pagination) {
+    function renderPagination(pagination, searchQuery) {
         var currentPage = pagination.current_page || 1;
         var totalPages = pagination.total_pages || 1;
+        var qParam = searchQuery ? '&q=' + encodeURIComponent(searchQuery) : '';
 
         var html = '';
 
         if (currentPage > 1) {
-            html += '<a href="?page=' + (currentPage - 1) + '">&#9664;</a>';
+            html += '<a href="?page=' + (currentPage - 1) + qParam + '">&#9664;</a>';
         } else {
             html += '<span class="btn-disabled">&#9664;</span>';
         }
@@ -396,7 +386,7 @@
         html += '<span>' + currentPage + ' of ' + Math.max(totalPages, 1) + '</span>';
 
         if (currentPage < totalPages) {
-            html += '<a href="?page=' + (currentPage + 1) + '">&#9654;</a>';
+            html += '<a href="?page=' + (currentPage + 1) + qParam + '">&#9654;</a>';
         } else {
             html += '<span class="btn-disabled">&#9654;</span>';
         }
@@ -404,13 +394,15 @@
         pagerEl.innerHTML = html;
     }
 
-    function loadGames() {
-        var page = getPageFromUrl();
-
+    function loadGames(page, query) {
         gridEl.innerHTML = '<div class="games-loading">Loading...</div>';
         pagerEl.innerHTML = '';
 
-        fetch(API_BASE + '?page=' + page, {
+        var endpoint = query 
+            ? '/api/v1/games/search?q=' + encodeURIComponent(query) + '&page=' + page
+            : '/api/v1/games/list?page=' + page;
+
+        fetch(endpoint, {
             method: 'GET',
             headers: { 'Accept': 'application/json' }
         })
@@ -422,17 +414,33 @@
             })
             .then(function (data) {
                 if (data.status !== 'success') {
-                    throw new Error(data.message || 'Bilinmeyen API hatası.');
+                    throw new Error(data.message || 'Unknown API error.');
                 }
                 renderGames(data.games);
-                renderPagination(data.pagination || {});
+                renderPagination(data.pagination || {}, query);
             })
             .catch(function (err) {
                 gridEl.innerHTML = '<div class="games-error">⚠ API request failed: ' + escapeHtml(err.message) + '</div>';
             });
     }
 
-    loadGames();
+    // İlk Durum Yüklemesi
+    var initialParams = getParamsFromUrl();
+    if (initialParams.query) {
+        searchInput.value = initialParams.query;
+    }
+    loadGames(initialParams.page, initialParams.query);
+
+    // Arama Kutusu Event Listener (Debounced)
+    searchInput.addEventListener('input', function() {
+        clearTimeout(searchTimeout);
+        searchTimeout = setTimeout(function() {
+            var q = searchInput.value.trim();
+            var newUrl = window.location.pathname + '?page=1' + (q ? '&q=' + encodeURIComponent(q) : '');
+            window.history.pushState({ path: newUrl }, '', newUrl);
+            loadGames(1, q);
+        }, 300);
+    });
 })();
 </script>
 

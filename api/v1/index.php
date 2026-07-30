@@ -111,9 +111,13 @@ switch ($module) {
         require_once ROOT_PATH . 'api/v1/users.php';
         handleUsersApi($apiAction);
         exit;
-    case 'captcha':
-        // api/v1/captcha.php dosyasını doğrudan ROOT_PATH ile dahil edip çalıştırıyoruz
-        require_once ROOT_PATH . 'api/v1/captcha.php';
+    case 'reports':
+    case 'reporter':
+        $apiAction = $apiParts[3] ?? '';
+        
+        // api/v1/reports.php dosyasını dahil ediyoruz
+        require_once ROOT_PATH . 'api/v1/reporter.php';
+        handleReporterApi($apiAction);
         exit;
     default:
         if (ob_get_length() > 0) {
