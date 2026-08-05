@@ -324,7 +324,7 @@ function handleAuthApi(string $action): void
             ");
             $stmt->execute([$user['id'], $hash, $expires]);
 
-            $link = "https://capsule.my.to/auth/reset?token=" . $token;
+            $link = "http://capsule.my.to/auth/reset?token=" . $token;
 
             try {
                 $mail = new PHPMailer(true);

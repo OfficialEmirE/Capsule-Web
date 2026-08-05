@@ -167,6 +167,26 @@ if ($existingUser['is_banned'] !== null) {
                 margin-bottom: 12px;
             }
 
+            .profile-role {
+                font-size: 11px;
+                color: var(--muted);
+                font-weight: bold;
+                margin-bottom: 12px;
+            }
+
+            .profile-role.admin {
+                display: inline-block;
+                background: #337ab7;
+                color: #fff;
+                padding: 3px 8px;
+                border-radius: 3px;
+                font-style: normal;
+            }
+
+            .profile-role:empty {
+                display: none;
+            }
+
             .profile-statistics {
                 background: var(--panel);
                 border: 1px solid var(--panel-border);
@@ -327,6 +347,23 @@ if ($existingUser['is_banned'] !== null) {
             .bio-cancel-btn:hover {
                 background: #c0392b;
             }
+
+            .user-games-panel { display:none; }
+            .user-games-panel h2 { position:relative; }
+            .user-games-carousel { position:relative; }
+            .user-game-card { display:none; }
+            .user-game-card.active { display:block; }
+            .user-game-card img { display:block; width:100%; aspect-ratio:16 / 9; object-fit:cover; background:#ddd; border:1px solid #cfcfcf; border-radius:4px; }
+            .user-game-card h3 { margin:9px 0 3px; font-size:15px; }
+            .user-game-card h3 a { color:#095fb8; text-decoration:none; }
+            .user-game-card h3 a:hover { text-decoration:underline; }
+            .user-game-meta { color:var(--muted); font-size:11px; }
+            .user-game-arrow { position:absolute; z-index:2; top:42%; transform:translateY(-50%); width:32px; height:50px; border:0; background:rgba(0,0,0,.55); color:#fff; font-size:25px; cursor:pointer; }
+            .user-game-arrow:hover { background:rgba(0,0,0,.8); }
+            .user-game-arrow.left { left:0; border-radius:0 3px 3px 0; }
+            .user-game-arrow.right { right:0; border-radius:3px 0 0 3px; }
+            @media (max-width:990px) { .profile-container { width:calc(100% - 24px); grid-template-columns:300px minmax(0,1fr); } }
+            @media (max-width:700px) { .profile-container { grid-template-columns:1fr; } }
         </style>
     </head>
     <body>
@@ -339,7 +376,7 @@ if ($existingUser['is_banned'] !== null) {
                     <div id="statusIndicator" class="profile-status-indicator" title="Offline"></div>
                     
                     <div class="profile-username" id="profileUsername">Loading...</div>
-                    <div class="profile-bio-short">User ID: #<?php echo (int)$userId; ?></div>
+                    <div class="profile-role" id="profileRole"></div>
                 </div>
 
                 <div class="profile-statistics">
@@ -384,6 +421,11 @@ if ($existingUser['is_banned'] !== null) {
                         </div>
                     </div>
                 </div>
+
+                <div id="userGamesPanel" class="profile-panel user-games-panel">
+                    <h2><span>Games</span></h2>
+                    <div id="userGamesCarousel" class="user-games-carousel"></div>
+                </div>
             </div>
         </div>
 
@@ -407,6 +449,12 @@ if ($existingUser['is_banned'] !== null) {
                         document.title = escapeHtml(user.username) + "'s Profile - Capsule Beta";
                         document.getElementById('profileUsername').textContent = user.username;
                         document.getElementById('aboutTitle').textContent = "About " + user.username;
+
+                        var roleElement = document.getElementById('profileRole');
+                        if (roleElement && Number(user.is_admin) === 1) {
+                            roleElement.textContent = 'Admin';
+                            roleElement.classList.add('admin');
+                        }
                         
                         originalBio = user.bio ? user.bio : "";
                         updateBioUI(originalBio);
@@ -429,6 +477,8 @@ if ($existingUser['is_banned'] !== null) {
                             var options = { year: 'numeric', month: 'short', day: 'numeric' };
                             document.getElementById('statJoinDate').textContent = date.toLocaleDateString('en-US', options);
                         }
+
+                        renderUserGames(user.id);
 
                         var targetColor = user.avatar ? user.avatar : '#ffffff';
                         
@@ -581,6 +631,77 @@ if ($existingUser['is_banned'] !== null) {
                 var div = document.createElement('div');
                 div.textContent = String(str);
                 return div.innerHTML;
+            }
+
+            function gameSlug(name) {
+                return String(name || 'game')
+                    .replace(/[ıİ]/g, 'i')
+                    .replace(/[ğĞ]/g, 'g')
+                    .replace(/[üÜ]/g, 'u')
+                    .replace(/[şŞ]/g, 's')
+                    .replace(/[öÖ]/g, 'o')
+                    .replace(/[çÇ]/g, 'c')
+                    .normalize('NFD')
+                    .replace(/[\u0300-\u036f]/g, '')
+                    .replace(/[^a-zA-Z0-9]+/g, '-')
+                    .replace(/^-+|-+$/g, '') || 'game';
+            }
+
+            function renderUserGames(profileUserId) {
+                fetch('/api/v1/games/list?owner_id=' + encodeURIComponent(profileUserId), { headers: { Accept: 'application/json' } })
+                    .then(function(res) { return res.ok ? res.json() : null; })
+                    .then(function(data) {
+                        var games = data && data.status === 'success' && Array.isArray(data.games) ? data.games : [];
+                        if (!games.length) return;
+
+                        var panel = document.getElementById('userGamesPanel');
+                        var carousel = document.getElementById('userGamesCarousel');
+                        var fallback = '/assets/images/capsuleTemplate.png';
+                        var cards = games.map(function(game, index) {
+                            var imageAsset = Array.isArray(game.thumbnail_urls) ? game.thumbnail_urls.find(function(asset) {
+                                return asset && String(asset.type).toLowerCase() === 'image' && asset.id;
+                            }) : null;
+                            var imageId = 'user-game-image-' + game.id;
+                            return '<article class="user-game-card' + (index === 0 ? ' active' : '') + '" data-game-index="' + index + '">'
+                                + '<a href="/games/' + encodeURIComponent(game.id) + '/' + encodeURIComponent(gameSlug(game.name)) + '"><img id="' + imageId + '" src="' + fallback + '" alt="' + escapeHtml(game.name) + '"></a>'
+                                + '<h3><a href="/games/' + encodeURIComponent(game.id) + '/' + encodeURIComponent(gameSlug(game.name)) + '">' + escapeHtml(game.name) + '</a></h3>'
+                                + '<div class="user-game-meta">Max ' + escapeHtml(game.max_players || '0') + ' players</div>'
+                                + '</article>';
+                        }).join('');
+
+                        var arrows = games.length > 1
+                            ? '<button class="user-game-arrow left" id="userGamesPrev" type="button" aria-label="Previous game">&#10094;</button><button class="user-game-arrow right" id="userGamesNext" type="button" aria-label="Next game">&#10095;</button>'
+                            : '';
+                        carousel.innerHTML = arrows + cards;
+                        panel.style.display = 'block';
+
+                        var current = 0;
+                        function showGame(index) {
+                            current = (index + games.length) % games.length;
+                            carousel.querySelectorAll('.user-game-card').forEach(function(card, cardIndex) {
+                                card.classList.toggle('active', cardIndex === current);
+                            });
+                        }
+                        var prev = document.getElementById('userGamesPrev');
+                        var next = document.getElementById('userGamesNext');
+                        if (prev) prev.onclick = function() { showGame(current - 1); };
+                        if (next) next.onclick = function() { showGame(current + 1); };
+
+                        games.forEach(function(game) {
+                            var imageAsset = Array.isArray(game.thumbnail_urls) ? game.thumbnail_urls.find(function(asset) {
+                                return asset && String(asset.type).toLowerCase() === 'image' && asset.id;
+                            }) : null;
+                            if (!imageAsset) return;
+                            fetch('/api/v1/assets?id=' + encodeURIComponent(imageAsset.id) + '&type=image', { headers: { Accept: 'application/json' } })
+                                .then(function(res) { return res.ok ? res.json() : null; })
+                                .then(function(data) {
+                                    var url = data && data.status === 'success' && data.asset ? data.asset.url : '';
+                                    var image = document.getElementById('user-game-image-' + game.id);
+                                    if (url && image) image.src = url;
+                                }).catch(function() {});
+                        });
+                    })
+                    .catch(function() {});
             }
 
             function showErrorPage() {

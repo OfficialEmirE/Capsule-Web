@@ -1,6 +1,6 @@
 <!-- Open Graph -->
 <meta property="og:site_name" content="Capsule">
-<meta property="og:url" content="https://capsule.my.to/">
+<meta property="og:url" content="https://capsule.rf.gd/">
 <meta property="og:title" content="Capsule">
 <meta property="og:description" content="Play Capsule 2D Games!">
 <meta property="og:type" content="website">

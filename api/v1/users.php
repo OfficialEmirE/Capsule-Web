@@ -69,7 +69,7 @@ function handleInfo(PDO $db): void {
 
     // Kullanıcıyı çekerken aktif ban durumunu da LEFT JOIN ile kontrol ediyoruz
     $sql = "
-        SELECT u.id, u.username, u.avatar, u.bio, u.created_at, 
+        SELECT u.id, u.username, u.avatar, u.bio, u.created_at, u.is_admin,
                b.id AS is_banned, b.reason, b.banned_at, b.expires_at
         FROM users u
         LEFT JOIN user_bans b ON u.id = b.user_id 
@@ -136,7 +136,7 @@ function handleUserList(PDO $db): void {
 
     // Listelemede b.id IS NULL şartı sayesinde banlılar hayalet moduna geçer
     $stmt = $db->prepare("
-        SELECT u.id, u.username, u.avatar 
+        SELECT u.id, u.username, u.avatar, u.is_admin 
         FROM users u
         LEFT JOIN user_bans b ON u.id = b.user_id 
           AND b.is_active = 1 
@@ -351,7 +351,7 @@ function handleUserSearch(PDO $db): void {
 
     // Arama sonuçlarında b.id IS NULL ile banlıları gizliyoruz
     $stmt = $db->prepare("
-        SELECT u.id, u.username, u.avatar, u.bio 
+        SELECT u.id, u.username, u.avatar, u.bio, u.is_admin 
         FROM users u
         LEFT JOIN user_bans b ON u.id = b.user_id 
           AND b.is_active = 1 

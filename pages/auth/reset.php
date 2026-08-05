@@ -11,6 +11,16 @@ $token = trim($_GET['token'] ?? '');
 <?php include ROOT_PATH.'includes/icon.php'; ?>
 <link rel="stylesheet" href="/assets/css/Capsule.css">
 
+<style>
+.password-wrap{position:relative;display:inline-block;width:100%;max-width:100%;}
+.password-wrap input{padding-right:38px;}
+.password-toggle{position:absolute;right:8px;top:50%;transform:translateY(-50%);border:0;background:transparent;cursor:pointer;color:#777;padding:4px;display:flex;align-items:center;justify-content:center;}
+.password-toggle:hover{color:#111;}
+.eye-icon{display:flex;align-items:center;justify-content:center;}
+.eye-icon svg{display:block;}
+            .eye-icon{display:flex;align-items:center;justify-content:center;}
+            .eye-icon svg{display:block;}
+</style>
 </head>
 <body>
 
@@ -79,21 +89,27 @@ Enter your new password below.
 
 <p>New Password:</p>
 
+<div class="password-wrap">
 <input
 type="password"
 id="password"
 placeholder="New Password"
 minlength="6"
 required>
+<button type="button" class="password-toggle" aria-label="Show password"><span class="eye-icon" aria-hidden="true"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12Z"/><circle cx="12" cy="12" r="3"/></svg></span></button>
+</div>
 
 <p>Confirm Password:</p>
 
+<div class="password-wrap">
 <input
 type="password"
 id="password2"
 placeholder="Confirm Password"
 minlength="6"
 required>
+<button type="button" class="password-toggle" aria-label="Show password"><span class="eye-icon" aria-hidden="true"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12Z"/><circle cx="12" cy="12" r="3"/></svg></span></button>
+</div>
 
 <input
 type="submit"
@@ -142,6 +158,13 @@ this.reset();
 });
 
 }
+
+document.querySelectorAll('.password-toggle').forEach(button => {
+    button.addEventListener('click', () => {
+        const input = button.parentElement.querySelector('input');
+        input.type = input.type === 'password' ? 'text' : 'password';
+    });
+});
 
 const reset=document.getElementById("resetPasswordForm");
 

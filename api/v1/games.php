@@ -71,6 +71,21 @@ function handleGamesApi(string $apiAction): void
 |--------------------------------------------------------------------------
 */
 
+function addDwfAssetId(array &$game): void
+{
+    $dwfId = (int)($game['dwf_id'] ?? 0);
+    $cleanMedia = [];
+    foreach ((array)($game['thumbnail_urls'] ?? []) as $media) {
+        if (is_array($media) && strtolower((string)($media['type'] ?? '')) === 'dwf' && (int)($media['id'] ?? 0) > 0) {
+            if ($dwfId <= 0) $dwfId = (int)$media['id'];
+            continue;
+        }
+        $cleanMedia[] = $media;
+    }
+    $game['thumbnail_urls'] = $cleanMedia;
+    $game['dwf_id'] = $dwfId > 0 ? $dwfId : null;
+}
+
 /**
  * List active games (Chronologically descending: Newest first)
  */
@@ -83,14 +98,23 @@ function handleList(PDO $db, string $method): void
 
     $limit = 12; 
     $offset = ($page - 1) * $limit;
+    $ownerId = isset($_GET['owner_id']) ? (int)$_GET['owner_id'] : 0;
+    $where = 'public = 1 OR public = \'1\'';
+    $countParams = [];
 
-    $totalStmt = $db->prepare("SELECT COUNT(*) FROM games WHERE public = :pub1 OR public = :pub2");
-    $totalStmt->execute([':pub1' => 1, ':pub2' => '1']);
+    if ($ownerId > 0) {
+        $where = '(public = 1 OR public = \'1\') AND ownerUserId = :owner_id';
+        $countParams[':owner_id'] = $ownerId;
+    }
+
+    $totalStmt = $db->prepare("SELECT COUNT(*) FROM games WHERE {$where}");
+    $totalStmt->execute($countParams);
     $totalGames = (int)$totalStmt->fetchColumn();
     $totalPages = (int)ceil($totalGames / $limit);
 
-    $sql = "SELECT * FROM games WHERE public = 1 OR public = '1' ORDER BY id DESC LIMIT " . intval($limit) . " OFFSET " . intval($offset);
-    $stmt = $db->query($sql);
+    $sql = "SELECT * FROM games WHERE {$where} ORDER BY id DESC LIMIT " . intval($limit) . " OFFSET " . intval($offset);
+    $stmt = $db->prepare($sql);
+    $stmt->execute($countParams);
     
     $games = $stmt->fetchAll(PDO::FETCH_ASSOC);
     if ($games === false) {
@@ -104,6 +128,7 @@ function handleList(PDO $db, string $method): void
         } else {
             $game['thumbnail_urls'] = [];
         }
+        addDwfAssetId($game);
     }
 
     ob_end_clean();
@@ -152,6 +177,8 @@ function handleInfo(PDO $db, string $method): void
     if (!$game) throw new Exception('Game entity not found.', 404);
 
     $game['thumbnail_urls'] = json_decode($game['thumbnail_urls'] ?? '[]', true);
+    if (!is_array($game['thumbnail_urls'])) $game['thumbnail_urls'] = [];
+    addDwfAssetId($game);
 
     ob_end_clean();
     echo json_encode(['status' => 'success', 'game' => $game], JSON_UNESCAPED_UNICODE);
@@ -180,12 +207,16 @@ function handleCreate(PDO $db, string $method): void
     if (count($thumbnails) > 8) throw new Exception('Array boundary exceeded: Maximum of 8 media structures allowed.', 400);
 
     $cleaned_thumbnails = [];
+    $imageCount = 0;
     foreach ($thumbnails as $media) {
-        if (isset($media['type'], $media['value'])) {
+        if (isset($media['type'], $media['id'])) {
+            if (strtolower(trim((string)$media['type'])) === 'image') {
+                $imageCount++;
+                if ($imageCount > 5) throw new Exception('A maximum of 5 images is allowed per game.', 400);
+            }
             $cleaned_thumbnails[] = [
                 'type'       => trim((string)$media['type']),
-                'asset_type' => trim((string)($media['asset_type'] ?? 'game_thumbnail')),
-                'value'      => trim((string)$media['value'])
+                'id'         => (int)$media['id']
             ];
         }
     }
@@ -257,14 +288,18 @@ function handleUpdate(PDO $db, string $method): void
         if (count($thumbnails) > 8) throw new Exception('Array boundary exceeded: Maximum of 8 media structures allowed.', 400);
 
         $cleaned_thumbnails = [];
+        $imageCount = 0;
         foreach ($thumbnails as $media) {
-            if (isset($media['type'], $media['value'])) {
-                $cleaned_thumbnails[] = [
-                    'type'       => trim((string)$media['type']),
-                    'asset_type' => trim((string)($media['asset_type'] ?? 'game_thumbnail')),
-                    'value'      => trim((string)$media['value'])
-                ];
-            }
+                if (isset($media['type'], $media['id'])) {
+                    if (strtolower(trim((string)$media['type'])) === 'image') {
+                        $imageCount++;
+                        if ($imageCount > 5) throw new Exception('A maximum of 5 images is allowed per game.', 400);
+                    }
+                    $cleaned_thumbnails[] = [
+                        'type'       => trim((string)$media['type']),
+                        'id'         => (int)$media['id']
+                    ];
+                }
         }
         $thumbnail_json = json_encode($cleaned_thumbnails, JSON_UNESCAPED_UNICODE);
     } else {
@@ -370,6 +405,7 @@ function handleSearch(PDO $db, string $method): void
         } else {
             $game['thumbnail_urls'] = [];
         }
+        addDwfAssetId($game);
     }
 
     ob_end_clean();

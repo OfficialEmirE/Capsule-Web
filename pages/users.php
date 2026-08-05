@@ -139,6 +139,18 @@ if (!defined('ROOT_PATH')) {
                 color: var(--muted);
             }
 
+            .member-admin-badge {
+                display: inline-block;
+                margin-left: 5px;
+                padding: 2px 6px;
+                border-radius: 3px;
+                background: #337ab7;
+                color: #fff;
+                font-size: 10px;
+                font-weight: bold;
+                vertical-align: middle;
+            }
+
             .pagination-container {
                 display: flex;
                 justify-content: center;
@@ -321,13 +333,15 @@ if (!defined('ROOT_PATH')) {
                     usernameEl.className = 'member-username';
                     usernameEl.textContent = user.username;
 
-                    var idEl = document.createElement('div');
-                    idEl.className = 'member-id';
-                    idEl.textContent = 'User ID: #' + user.id;
+                    if (Number(user.is_admin) === 1) {
+                        var adminBadge = document.createElement('span');
+                        adminBadge.className = 'member-admin-badge';
+                        adminBadge.textContent = 'Admin';
+                        usernameEl.appendChild(adminBadge);
+                    }
 
                     card.appendChild(avatarContainer);
                     card.appendChild(usernameEl);
-                    card.appendChild(idEl);
 
                     membersGrid.appendChild(card);
                 });

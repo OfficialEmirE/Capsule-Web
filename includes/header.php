@@ -1,5 +1,16 @@
 <?php
+if (!defined('ROOT_PATH')) {
+    define('ROOT_PATH', dirname(__DIR__) . DIRECTORY_SEPARATOR);
+}
+if (session_status() === PHP_SESSION_NONE) {
+    session_start();
+}
+if (!function_exists('api_db')) {
+    require_once ROOT_PATH . 'api/config.php';
+}
+
 $isAdmin = false;
+$activeAnnouncement = null;
 
 if (isset($_SESSION['user_id'])) {
 
@@ -29,6 +40,36 @@ if (isset($_SESSION['user_id'])) {
     }
 
 }
+
+try {
+    $announcementDb = api_db();
+    $announcementStmt = $announcementDb->query("SELECT a.message, a.created_at, a.expires_at, u.username AS author_name
+        FROM announcements a
+        LEFT JOIN users u ON u.id = a.created_by
+        ORDER BY a.id DESC
+        LIMIT 1");
+    $activeAnnouncement = $announcementStmt->fetch(PDO::FETCH_ASSOC) ?: null;
+    if ($activeAnnouncement && $activeAnnouncement['expires_at'] !== null && strtotime($activeAnnouncement['expires_at']) <= time()) {
+        $activeAnnouncement = null;
+    }
+} catch (Throwable $e) {
+    $activeAnnouncement = null;
+}
+
+$announcementMessageHtml = '';
+if ($activeAnnouncement) {
+    $escapedAnnouncement = htmlspecialchars($activeAnnouncement['message'], ENT_QUOTES, 'UTF-8');
+    $announcementMessageHtml = preg_replace_callback(
+        '~https?://[^\s<]+~i',
+        static function (array $match): string {
+            $url = rtrim($match[0], '.,!?;:)');
+            $trailing = substr($match[0], strlen($url));
+            return '<a href="' . $url . '" target="_blank" rel="noopener noreferrer">' . $url . '</a>' . $trailing;
+        },
+        $escapedAnnouncement
+    );
+    $announcementMessageHtml = nl2br($announcementMessageHtml ?? $escapedAnnouncement);
+}
 ?>  
 <nav class="navbar">
     <div class="navbar-inner">
@@ -39,7 +80,7 @@ if (isset($_SESSION['user_id'])) {
             <ul class="nav-links">
                 <li><a href="/">Home</a></li>
                 <li><a href="/games">Games</a></li>
-                <li><a href="#">Create</a></li>
+                <li><a href="/develop">Create</a></li>
                 <li><a href="/avatar">Avatar</a></li>
                 <li><a href="/download">Download</a></li>
             </ul>
@@ -94,6 +135,37 @@ if (isset($_SESSION['user_id'])) {
         </div>
     </div>
 </nav>
+
+<?php if ($activeAnnouncement): ?>
+<div class="announcement-bar" role="status">
+    <div class="announcement-inner">
+        <span class="announcement-message"><?php echo $announcementMessageHtml; ?></span>
+    </div>
+</div>
+<?php endif; ?>
+
+<style>
+    .announcement-bar {
+        background: #fff8d9;
+        border-bottom: 1px solid #e4d58a;
+        color: #5f531d;
+        font-size: 12px;
+    }
+    .announcement-inner {
+        width: 970px;
+        margin: 0 auto;
+        padding: 8px 10px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        text-align: center;
+    }
+    .announcement-message { white-space: normal; font-weight: 600; }
+    .announcement-message a { color: #6d5b00; text-decoration: underline; }
+    @media (max-width: 990px) {
+        .announcement-inner { width: calc(100% - 24px); }
+    }
+</style>
 
 <script>
 /**

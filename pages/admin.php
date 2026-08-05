@@ -27,43 +27,17 @@ if (!isset($_SESSION['user_id'])) {
 
 $currentUserId = (int)$_SESSION['user_id'];
 $isAdmin = false;
+$db = null;
 
-// API sunucusunun URL'sini tespit etme
-$protocol = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') ? "https://" : "http://";
-$host = $_SERVER['HTTP_HOST'] ?? 'localhost';
-$apiUrl = $protocol . $host . "/api/v1/users/info?id=" . $currentUserId;
-
-$ch = curl_init();
-curl_setopt($ch, CURLOPT_URL, $apiUrl);
-curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
-
-if (isset($_COOKIE[session_name()])) {
-    curl_setopt($ch, CURLOPT_COOKIE, session_name() . '=' . $_COOKIE[session_name()]);
-}
-curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
-curl_setopt($ch, CURLOPT_TIMEOUT, 5);
-
-$apiResponse = curl_exec($ch);
-$httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-curl_close($ch);
-
-if ($httpCode === 200 && $apiResponse) {
-    $userData = json_decode($apiResponse, true);
-    if (isset($userData['status'], $userData['user']['is_admin']) && $userData['status'] === 'success') {
-        $isAdmin = ((int)$userData['user']['is_admin'] === 1);
-    }
-} else {
-    try {
-        $dbFallback = api_db();
-        $stmtFallback = $dbFallback->prepare("SELECT is_admin FROM users WHERE id = ? LIMIT 1");
-        $stmtFallback->execute([$currentUserId]);
-        $rowFallback = $stmtFallback->fetch(PDO::FETCH_ASSOC);
-        if ($rowFallback && (int)$rowFallback['is_admin'] === 1) {
-            $isAdmin = true;
-        }
-    } catch (Throwable $e) {
-        $isAdmin = false;
-    }
+try {
+    // The admin page is already running on the same server and session.
+    // Avoid a self-cURL request: it creates an extra hit and can deadlock sessions.
+    $db = api_db();
+    $adminStmt = $db->prepare('SELECT is_admin FROM users WHERE id = ? LIMIT 1');
+    $adminStmt->execute([$currentUserId]);
+    $isAdmin = (int)$adminStmt->fetchColumn() === 1;
+} catch (Throwable $e) {
+    $isAdmin = false;
 }
 
 if (!$isAdmin) {
@@ -77,7 +51,7 @@ $actionMessage = "";
 $actionStatus = "";
 
 try {
-    $db = api_db();
+    if (!$db instanceof PDO) $db = api_db();
 
     // --- HANDLE POST ACTIONS (BAN / UNBAN / WARNING / RESOLVE REPORT) ---
     if ($_SERVER['REQUEST_METHOD'] === 'POST') {
@@ -140,6 +114,24 @@ try {
                 $actionMessage = "User not found.";
                 $actionStatus = "error";
             }
+        } elseif (isset($_POST['action']) && $_POST['action'] === 'create_announcement') {
+            $announcementMessage = trim((string)($_POST['announcement_message'] ?? ''));
+            $durationHours = max(0, (int)($_POST['announcement_duration'] ?? 0));
+
+            if ($announcementMessage === '') {
+                $actionMessage = 'Announcement message is required.';
+                $actionStatus = 'error';
+            } else {
+                $expiresAt = null;
+                if ($durationHours > 0) {
+                    $expiresAt = date('Y-m-d H:i:s', strtotime("+{$durationHours} hours"));
+                }
+
+                $announcementStmt = $db->prepare('INSERT INTO announcements (message, created_by, expires_at) VALUES (?, ?, ?)');
+                $announcementStmt->execute([$announcementMessage, $currentUserId, $expiresAt]);
+                $actionMessage = 'Announcement published successfully.';
+                $actionStatus = 'success';
+            }
         } elseif (isset($_POST['resolve_report_id'])) {
             $reportId = (int)$_POST['resolve_report_id'];
             $updateReport = $db->prepare("UPDATE reports SET status = 'resolved' WHERE id = ?");
@@ -150,8 +142,9 @@ try {
     }
 
     // --- İSTATİSTİKLER ---
-    $totalUsers = $db->query("SELECT COUNT(*) FROM users")->fetchColumn();
-    $active24h = $db->query("SELECT COUNT(*) FROM users WHERE last_login >= NOW() - INTERVAL 1 DAY")->fetchColumn();
+    $userStats = $db->query("SELECT COUNT(*) AS total_users, SUM(last_login >= NOW() - INTERVAL 1 DAY) AS active_24h FROM users")->fetch(PDO::FETCH_ASSOC) ?: [];
+    $totalUsers = (int)($userStats['total_users'] ?? 0);
+    $active24h = (int)($userStats['active_24h'] ?? 0);
     
     // Aktif Ban/Uyarı Sayısını Hesaplama
     $bannedUsersCount = $db->query("SELECT COUNT(DISTINCT user_id) FROM user_bans WHERE is_active = 1 AND (expires_at IS NULL OR expires_at > NOW())")->fetchColumn();
@@ -241,6 +234,16 @@ try {
         $reportsList = [];
     }
 
+    // 6. Announcements
+    try {
+        $announcementsList = $db->query("SELECT a.id, a.message, a.created_at, a.expires_at, u.username AS author_name
+            FROM announcements a
+            LEFT JOIN users u ON u.id = a.created_by
+            ORDER BY a.id DESC LIMIT 20")->fetchAll(PDO::FETCH_ASSOC);
+    } catch (Exception $e) {
+        $announcementsList = [];
+    }
+
 } catch (Exception $e) {
     if (!headers_sent()) {
         header('Content-Type: application/json; charset=utf-8');
@@ -325,19 +328,19 @@ try {
             <div class="stats-boxes">
                 <div class="stat-box">
                     <h3>Total Users</h3>
-                    <p><?php echo $totalUsers; ?></p>
+                    <p id="adminTotalUsers"><?php echo $totalUsers; ?></p>
                 </div>
                 <div class="stat-box">
                     <h3>24h Active Users</h3>
-                    <p><?php echo $active24h; ?></p>
+                    <p id="adminActiveUsers"><?php echo $active24h; ?></p>
                 </div>
                 <div class="stat-box">
                     <h3>Total Games</h3>
-                    <p style="color: #337ab7;"><?php echo $totalGames; ?></p>
+                    <p id="adminTotalGames" style="color: #337ab7;"><?php echo $totalGames; ?></p>
                 </div>
                 <div class="stat-box">
                     <h3>Active Bans / Warnings</h3>
-                    <p style="color: #d9534f;"><?php echo $bannedUsersCount; ?></p>
+                    <p id="adminActiveBans" style="color: #d9534f;"><?php echo $bannedUsersCount; ?></p>
                 </div>
             </div>
 
@@ -384,6 +387,23 @@ try {
                         </ul>
                     </div>
                 </div>
+
+                <div class="tool-card">
+                    <h3>Publish Announcement</h3>
+                    <form method="POST" action="">
+                        <input type="hidden" name="action" value="create_announcement">
+                        <div class="form-group">
+                            <label for="announcement_message">Announcement:</label>
+                            <textarea id="announcement_message" name="announcement_message" class="form-control" rows="4" placeholder="Write an announcement..." required></textarea>
+                        </div>
+                        <div class="form-group">
+                            <label for="announcement_duration">Visible for (hours):</label>
+                            <input type="number" id="announcement_duration" name="announcement_duration" class="form-control" min="0" value="0">
+                            <small style="color:#777;">Use 0 to keep it until another announcement is published.</small>
+                        </div>
+                        <button type="submit" class="btn-admin btn-success">Publish Announcement</button>
+                    </form>
+                </div>
             </div>
 
             <!-- SEKMELER (TABS) -->
@@ -393,6 +413,7 @@ try {
                 <button class="tab-btn" onclick="openTab(event, 'banned-users')">Banned & Warned Users (<?php echo count($bannedUsersList); ?>)</button>
                 <button class="tab-btn" onclick="openTab(event, 'games-list')">Games List</button>
                 <button class="tab-btn" onclick="openTab(event, 'reports-list')">Reports List (<?php echo count($reportsList); ?>)</button>
+                <button class="tab-btn" onclick="openTab(event, 'announcements-list')">Announcements (<?php echo count($announcementsList); ?>)</button>
             </div>
 
             <!-- TAB 1: TÜM KULLANICILAR -->
@@ -547,7 +568,7 @@ try {
                                     <td>#<?php echo $game['id']; ?></td>
                                     <td>
                                         <strong>
-                                            <a href="/games/info?id=<?php echo $game['id']; ?>" target="_blank" style="color: #095fb8; text-decoration: none;">
+                                            <a href="/games/<?php echo $game['id']; ?>" target="_blank" style="color: #095fb8; text-decoration: none;">
                                                 <?php echo htmlspecialchars($game['name']); ?>
                                             </a>
                                         </strong>
@@ -603,7 +624,7 @@ try {
                                                 <strong><?php echo htmlspecialchars($report['target_username'] ?? ('User #' . $report['target_id'])); ?></strong>
                                             </a>
                                         <?php else: ?>
-                                            <a href="/games/info?id=<?php echo $report['target_id']; ?>" target="_blank" style="text-decoration: none;">
+                                            <a href="/games/<?php echo $report['target_id']; ?>" target="_blank" style="text-decoration: none;">
                                                 <strong><?php echo htmlspecialchars($report['target_game_name'] ?? ('Game #' . $report['target_id'])); ?></strong>
                                             </a>
                                         <?php endif; ?>
@@ -621,6 +642,36 @@ try {
                                             </form>
                                         <?php endif; ?>
                                     </td>
+                                </tr>
+                            <?php endforeach; ?>
+                        <?php endif; ?>
+                    </tbody>
+                </table>
+            </div>
+
+            <div id="announcements-list" class="tab-content">
+                <h3>Announcements</h3>
+                <table class="activity-table">
+                    <thead>
+                        <tr>
+                            <th>ID</th>
+                            <th>Message</th>
+                            <th>Posted By</th>
+                            <th>Created</th>
+                            <th>Expires</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <?php if (empty($announcementsList)): ?>
+                            <tr><td colspan="5" style="text-align:center;color:#777;">No announcements found.</td></tr>
+                        <?php else: ?>
+                            <?php foreach ($announcementsList as $announcement): ?>
+                                <tr>
+                                    <td>#<?php echo (int)$announcement['id']; ?></td>
+                                    <td style="white-space:pre-wrap;"><?php echo htmlspecialchars($announcement['message']); ?></td>
+                                    <td><strong><?php echo htmlspecialchars($announcement['author_name'] ?? 'Unknown Admin'); ?></strong></td>
+                                    <td><?php echo date('Y-m-d H:i', strtotime($announcement['created_at'])); ?></td>
+                                    <td><?php echo $announcement['expires_at'] ? date('Y-m-d H:i', strtotime($announcement['expires_at'])) : 'Until replaced'; ?></td>
                                 </tr>
                             <?php endforeach; ?>
                         <?php endif; ?>
@@ -656,6 +707,18 @@ try {
                 alert('Please enter a valid User ID');
             }
         }
+
+        fetch('/api/v1/admin/dashboard', { headers: { Accept: 'application/json' } })
+            .then(function (response) { return response.ok ? response.json() : null; })
+            .then(function (data) {
+                if (!data || data.status !== 'success' || !data.stats) return;
+                var stats = data.stats;
+                document.getElementById('adminTotalUsers').textContent = stats.total_users;
+                document.getElementById('adminActiveUsers').textContent = stats.active_24h;
+                document.getElementById('adminActiveBans').textContent = stats.active_bans;
+                document.getElementById('adminTotalGames').textContent = stats.total_games;
+            })
+            .catch(function () {});
     </script>
 </body>
 </html>

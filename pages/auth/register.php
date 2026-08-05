@@ -6,6 +6,16 @@
         <title>Register - Capsule Beta</title>
         <?php include ROOT_PATH . 'includes/icon.php'; ?>
         <link rel="stylesheet" href="/assets/css/Capsule.css">
+        <style>
+            .password-wrap{position:relative;display:inline-block;width:100%;max-width:100%;}
+            .password-wrap input{padding-right:38px;}
+            .password-toggle{position:absolute;right:8px;top:50%;transform:translateY(-50%);border:0;background:transparent;cursor:pointer;color:#777;padding:4px;display:flex;align-items:center;justify-content:center;}
+            .password-toggle:hover{color:#111;}
+.eye-icon{display:flex;align-items:center;justify-content:center;}
+.eye-icon svg{display:block;}
+            .eye-icon{display:flex;align-items:center;justify-content:center;}
+            .eye-icon svg{display:block;}
+        </style>
     </head>
     <body>
         <?php include ROOT_PATH . 'includes/header.php'; ?>
@@ -26,7 +36,12 @@
                             <input type="email" name="email" placeholder="Email">
                             <!-- Password Box -->
                             <p>Password:<span style="color: red; vertical-align: super;">*</span></p>
-                            <input type="password" placeholder="Password" name="password" required>
+                            <div class="password-wrap">
+                                <input type="password" placeholder="Password" name="password" required>
+                                <button type="button" class="password-toggle" aria-label="Show password">
+                                    <span class="eye-icon" aria-hidden="true"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12Z"/><circle cx="12" cy="12" r="3"/></svg></span>
+                                </button>
+                            </div>
                             
                             <p>
                                 <input type="checkbox" name="terms" required/> I agree to the <a href="/termsofuse" style="text-decoration: underline;">Terms of Use</a> and <a href="/privacypolicy" style="text-decoration: underline;">Privacy Policy</a>.<span style="color: red; vertical-align: super;">*</span>
@@ -47,6 +62,14 @@
         
         <?php include ROOT_PATH . 'includes/bottom.php'; ?>
 
+        <script>
+            document.querySelectorAll('.password-toggle').forEach(button => {
+                button.addEventListener('click', () => {
+                    const input = button.parentElement.querySelector('input');
+                    input.type = input.type === 'password' ? 'text' : 'password';
+                });
+            });
+        </script>
         <!-- Form Gönderim JavaScript Kodu -->
         <script>
             /**

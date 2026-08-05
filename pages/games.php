@@ -114,7 +114,7 @@
     .game-card img{
         display:block;
         width:170px;
-        height:110px;
+        height:96px;
         object-fit:cover;
         background:#ddd;
         border:1px solid #cfcfcf;
@@ -288,13 +288,36 @@
     }
 
     function getThumbnail(game) {
-        return "https://placehold.co/170x110?text=Beta+Feature";
+        var media = Array.isArray(game.thumbnail_urls) ? game.thumbnail_urls : [];
+        for (var i = 0; i < media.length; i++) {
+            var item = media[i];
+            var type = String(item && item.type ? item.type : '').toLowerCase();
+            var value = item && (item.url || item.value) ? (item.url || item.value) : '';
+            if (type === 'image' && /^https?:\/\//i.test(value)) {
+                return value;
+            }
+        }
+        return '/assets/images/capsuleTemplate.png';
     }
 
     function escapeHtml(str) {
         var div = document.createElement('div');
         div.textContent = str == null ? '' : String(str);
         return div.innerHTML;
+    }
+
+    function gameSlug(name) {
+        return String(name || 'game')
+            .replace(/[ıİ]/g, 'i')
+            .replace(/[ğĞ]/g, 'g')
+            .replace(/[üÜ]/g, 'u')
+            .replace(/[şŞ]/g, 's')
+            .replace(/[öÖ]/g, 'o')
+            .replace(/[çÇ]/g, 'c')
+            .normalize('NFD')
+            .replace(/[\u0300-\u036f]/g, '')
+            .replace(/[^a-zA-Z0-9]+/g, '-')
+            .replace(/^-+|-+$/g, '') || 'game';
     }
 
     function resolveAndRenderCreator(userId, placeholderId) {
@@ -347,11 +370,12 @@
         games.forEach(function (game) {
             var creatorId = game.ownerUserId || game.creator_id || null;
             var placeholderId = 'creator-placeholder-' + game.id;
+            var thumbnailId = 'thumbnail-' + game.id;
             
             html += ''
                 + '<div class="game-card">'
-                + '<img src="' + escapeHtml(getThumbnail(game)) + '" alt="' + escapeHtml(game.name) + '">'
-                + '<div class="game-title"><a href="/games/info?id=' + encodeURIComponent(game.id) + '">' + escapeHtml(game.name) + '</a></div>'
+                + '<img id="' + thumbnailId + '" src="' + escapeHtml(getThumbnail(game)) + '" alt="' + escapeHtml(game.name) + '">'
+                + '<div class="game-title"><a href="/games/' + encodeURIComponent(game.id) + '/' + encodeURIComponent(gameSlug(game.name)) + '">' + escapeHtml(game.name) + '</a></div>'
                 + '<div class="creator" id="' + placeholderId + '">by <span style="color: var(--muted);">Loading...</span></div>'
                 + '<div class="players">'
                 + '<span>Max ' + escapeHtml(game.max_players) + ' players</span>'
@@ -364,6 +388,22 @@
                     userCache[creatorId] = game.owner.username;
                 }
                 resolveAndRenderCreator(creatorId, placeholderId);
+
+                var media = Array.isArray(game.thumbnail_urls) ? game.thumbnail_urls : [];
+                var imageAsset = media.find(function (asset) {
+                    return asset && String(asset.type || '').toLowerCase() === 'image' && asset.id;
+                });
+                if (imageAsset && !/^https?:\/\//i.test(String(imageAsset.value || imageAsset.url || ''))) {
+                    fetch('/api/v1/assets?id=' + encodeURIComponent(imageAsset.id) + '&type=image')
+                        .then(function (response) { return response.ok ? response.json() : null; })
+                        .then(function (data) {
+                            var resolved = data && (data.asset || data.data);
+                            var image = resolved && resolved.url;
+                            var imageEl = document.getElementById(thumbnailId);
+                            if (imageEl && image) imageEl.src = image;
+                        })
+                        .catch(function () {});
+                }
             }, 0);
         });
 

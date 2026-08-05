@@ -111,6 +111,11 @@ switch ($module) {
         require_once ROOT_PATH . 'api/v1/users.php';
         handleUsersApi($apiAction);
         exit;
+    case 'admin':
+        $apiAction = $apiParts[3] ?? '';
+        require_once ROOT_PATH . 'api/v1/admin.php';
+        handleAdminApi($apiAction);
+        exit;
     case 'reports':
     case 'reporter':
         $apiAction = $apiParts[3] ?? '';

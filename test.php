@@ -201,6 +201,37 @@ button {
     cursor:pointer;
 }
 
+.test-panel {
+    max-width:520px;
+    margin-top:30px;
+    padding:18px;
+    border:1px solid #ccc;
+    border-radius:6px;
+}
+
+.test-panel h3 {
+    margin-top:0;
+}
+
+.upload-result {
+    white-space:pre-wrap;
+    margin-top:15px;
+    padding:10px;
+    background:#f5f5f5;
+    border:1px solid #ddd;
+    font-size:12px;
+}
+
+.uploaded-image {
+    display:none;
+    max-width:100%;
+    aspect-ratio:16 / 9;
+    object-fit:contain;
+    margin-top:12px;
+    background:#eee;
+    border:1px solid #ddd;
+}
+
 </style>
 
 </head>
@@ -238,6 +269,67 @@ Create Reset URL
 <?= $message ?>
 
 </div>
+
+
+<section class="test-panel">
+    <h3>CDN Image Upload Test</h3>
+
+    <form id="assetUploadForm" enctype="multipart/form-data">
+        <input type="file" name="file" accept="image/*" required>
+        <input type="hidden" name="type" value="image">
+        <button type="submit">Upload Image</button>
+    </form>
+
+    <pre id="uploadResult" class="upload-result">No upload started.</pre>
+    <img id="uploadedImage" class="uploaded-image" alt="Uploaded asset preview">
+</section>
+
+<script>
+(function () {
+    var form = document.getElementById('assetUploadForm');
+    var result = document.getElementById('uploadResult');
+    var preview = document.getElementById('uploadedImage');
+
+    form.addEventListener('submit', function (event) {
+        event.preventDefault();
+
+        var fileInput = form.querySelector('input[type="file"]');
+        if (!fileInput.files.length) return;
+
+        result.textContent = 'Uploading...';
+        preview.style.display = 'none';
+
+        fetch('/api/v1/assets/upload', {
+            method: 'POST',
+            body: new FormData(form)
+        })
+            .then(function (response) {
+                return response.json().then(function (data) {
+                    if (!response.ok) throw new Error(data.message || 'Upload failed.');
+                    return data;
+                });
+            })
+            .then(function (data) {
+                result.textContent = JSON.stringify(data, null, 2);
+                if (data.asset && data.asset.id) {
+                    fetch('/api/v1/assets?id=' + encodeURIComponent(data.asset.id) + '&type=image', {
+                        headers: { Accept: 'application/json' }
+                    })
+                        .then(function (response) { return response.json(); })
+                        .then(function (assetData) {
+                            if (assetData.status === 'success' && assetData.asset && assetData.asset.url) {
+                                preview.src = assetData.asset.url;
+                                preview.style.display = 'block';
+                            }
+                        });
+                }
+            })
+            .catch(function (error) {
+                result.textContent = 'Error: ' + error.message;
+            });
+    });
+}());
+</script>
 
 
 </body>
