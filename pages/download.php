@@ -3,50 +3,48 @@
     <head>
         <meta charset="UTF-8">
         <meta name="viewport" content="width=device-width, initial-scale=1.0">
-        <title>Download - Capsule Beta</title>
+        <title>Download - Capsule</title>
         <?php include ROOT_PATH . 'includes/meta.php'; ?>
         <?php include ROOT_PATH . 'includes/icon.php'; ?>
         <link rel="stylesheet" href="/assets/css/Capsule.css">
     </head>
     <body>
         <?php include ROOT_PATH . 'includes/header.php'; ?>
-        
-        <div class="main-container"> 
+        <div class="main-container">
             <div class="top-row">
                 <div class="featured-game">
-                    <div style="width: 600px;">
-                        <h2>Download (not working)</h2>
-                        <p>Download the <b>Capsule Beta</b> Client or Studio for your platform below.</p>
-                        
-                        <!-- Resmi yanında "Download Client for Windows" yazsın. ve yazının tıklanabilir gibi gözüksün.-->
+                    <div style="width:600px;">
+                        <h2>Download Capsule</h2>
+                        <p>Choose your platform to download the Capsule Launcher.</p>
                         <div class="download-btn">
-                            <!-- Client Button -->
-                            <h3>Client</h3>
-                            <img src="/assets/images/favicons/favicon.ico" alt="Client Logo" style="height: 50px; margin-right: 10px;">
-                            <a href="/assets/downloads/CapsuleClient.exe" style="text-decoration: underline;" class="btn-download">Download Client for Windows</a>                            
+                            <label for="launcherPlatform"><b>Platform</b></label>
+                            <select id="launcherPlatform" style="display:block;width:100%;margin:8px 0;padding:8px;border:1px solid #ccc;border-radius:3px;">
+                                <option value="windows">Windows</option>
+                                <!--<option value="mac">macOS</option>
+                                <option value="linux">Linux</option>-->
+                            </select>
+                            <a id="launcherDownload" href="https://raw.githubusercontent.com/OfficialEmirE/ramazangay/main/CapsuleLauncher.exe" class="btn-download">Download for Windows</a>
                         </div>
-                        <div class="download-btn">
-                            <!-- Studio Button -->
-                            <h3>Studio</h3>
-                            <img src="/assets/images/studio.ico" alt="Studio Logo" style="height: 50px; margin-right: 10px;">
-                            <a href="/assets/downloads/CapsuleStudioLauncher.exe" style="text-decoration: underline;" class="btn-download">Download Studio for Windows</a>
-                        </div>
-                        <!-- <div class="download-btn">
-                            <!-- Server Button
-                            <h3>Server</h3>
-                            <img src="/assets/images/studio.ico" alt="Server Logo" style="height: 50px; margin-right: 10px;">
-                            <a href="/assets/downloads/CapsuleServer.exe" class="btn-download">Download Server for Windows</a>
-                        </div>
-                        <button class="download-btn" style="width: 100%; height: 100%;">
-                            <h3>Client</h3>
-                            <img src="/assets/images/favicons/favicon.ico" alt="Client Logo" style="height: 50px; margin-right: 10px;">
-                            <a href="/assets/downloads/CapsuleClient.exe" class="btn-download">Download Client for Windows</a>
-                        </button> -->
                     </div>
                 </div>
             </div>
         </div>
-        
         <?php include ROOT_PATH . 'includes/bottom.php'; ?>
+        <script>
+        (function () {
+            var platform = document.getElementById('launcherPlatform');
+            var download = document.getElementById('launcherDownload');
+            var files = {
+                windows: { url: 'https://raw.githubusercontent.com/OfficialEmirE/ramazangay/main/CapsuleLauncher.exe', label: 'Download for Windows' },
+                mac: { url: 'https://raw.githubusercontent.com/OfficialEmirE/ramazangay/main/CapsuleLauncher.dmg', label: 'Download for macOS' },
+                linux: { url: 'https://raw.githubusercontent.com/OfficialEmirE/ramazangay/main/CapsuleLauncher.AppImage', label: 'Download for Linux' }
+            };
+            platform.addEventListener('change', function () {
+                var selected = files[platform.value] || files.windows;
+                download.href = selected.url;
+                download.textContent = selected.label;
+            });
+        })();
+        </script>
     </body>
 </html>

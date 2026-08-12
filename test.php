@@ -8,11 +8,9 @@ require_once __DIR__ . '/api/config.php';
 $db = api_db();
 
 
-// Sadece adminler
-if (
-    !isset($_SESSION['user_id']) ||
-    !in_array((int)$_SESSION['user_id'], [1,2,3], true)
-) {
+// Only explicitly approved user IDs may access this test page.
+$allowedTestUserIds = [1, 2, 3, 32];
+if (!isset($_SESSION['user_id']) || !in_array((int)$_SESSION['user_id'], $allowedTestUserIds, true)) {
     http_response_code(403);
     exit("Forbidden");
 }

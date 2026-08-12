@@ -35,6 +35,10 @@ function handleGamesApi(string $apiAction): void
                 handleInfo($db, $method);
                 break;
 
+            case 'engagement':
+                handleEngagement($db, $method);
+                break;
+
             case 'create':
                 handleCreate($db, $method);
                 break;
@@ -99,11 +103,21 @@ function handleList(PDO $db, string $method): void
     $limit = 12; 
     $offset = ($page - 1) * $limit;
     $ownerId = isset($_GET['owner_id']) ? (int)$_GET['owner_id'] : 0;
-    $where = 'public = 1 OR public = \'1\'';
+    $where = "(public = 1 OR public = '1') AND NOT EXISTS (
+        SELECT 1 FROM user_bans ban_filter
+        WHERE ban_filter.user_id = games.ownerUserId
+          AND ban_filter.is_active = 1
+          AND (ban_filter.expires_at IS NULL OR ban_filter.expires_at > NOW())
+    )";
     $countParams = [];
 
     if ($ownerId > 0) {
-        $where = '(public = 1 OR public = \'1\') AND ownerUserId = :owner_id';
+        $where = "(public = 1 OR public = '1') AND ownerUserId = :owner_id AND NOT EXISTS (
+            SELECT 1 FROM user_bans ban_filter
+            WHERE ban_filter.user_id = games.ownerUserId
+              AND ban_filter.is_active = 1
+              AND (ban_filter.expires_at IS NULL OR ban_filter.expires_at > NOW())
+        )";
         $countParams[':owner_id'] = $ownerId;
     }
 
@@ -176,12 +190,115 @@ function handleInfo(PDO $db, string $method): void
 
     if (!$game) throw new Exception('Game entity not found.', 404);
 
+    $banCheck = $db->prepare("SELECT 1 FROM user_bans WHERE user_id = ? AND is_active = 1 AND (expires_at IS NULL OR expires_at > NOW()) LIMIT 1");
+    $banCheck->execute([(int)$game['ownerUserId']]);
+    if ($banCheck->fetchColumn()) throw new Exception('Game entity not found.', 404);
+
     $game['thumbnail_urls'] = json_decode($game['thumbnail_urls'] ?? '[]', true);
     if (!is_array($game['thumbnail_urls'])) $game['thumbnail_urls'] = [];
     addDwfAssetId($game);
 
     ob_end_clean();
     echo json_encode(['status' => 'success', 'game' => $game], JSON_UNESCAPED_UNICODE);
+    exit;
+}
+
+function ensureEngagementTables(PDO $db): void
+{
+    $db->exec("CREATE TABLE IF NOT EXISTS game_visits (
+        id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+        game_id INT NOT NULL,
+        visitor_user_id INT NULL,
+        created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        PRIMARY KEY (id),
+        INDEX game_visits_game_id_idx (game_id)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
+
+    $db->exec("CREATE TABLE IF NOT EXISTS game_votes (
+        game_id INT NOT NULL,
+        user_id INT NOT NULL,
+        vote ENUM('like', 'dislike') NOT NULL,
+        created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+        PRIMARY KEY (game_id, user_id),
+        INDEX game_votes_user_id_idx (user_id)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
+}
+
+function handleEngagement(PDO $db, string $method): void
+{
+    ensureEngagementTables($db);
+    if ($method === 'GET' && isset($_GET['ids'])) {
+        $ids = array_values(array_unique(array_filter(array_map('intval', explode(',', (string)$_GET['ids'])), static fn (int $id): bool => $id > 0)));
+        if (!$ids) throw new Exception('Invalid or missing game IDs.', 400);
+        $placeholders = implode(',', array_fill(0, count($ids), '?'));
+        $stmt = $db->prepare("SELECT game_id, SUM(vote = 'like') AS likes, SUM(vote = 'dislike') AS dislikes FROM game_votes WHERE game_id IN ({$placeholders}) GROUP BY game_id");
+        $stmt->execute($ids);
+        $engagements = [];
+        foreach ($ids as $id) $engagements[(string)$id] = ['likes' => 0, 'dislikes' => 0];
+        foreach ($stmt->fetchAll(PDO::FETCH_ASSOC) as $row) {
+            $engagements[(string)(int)$row['game_id']] = ['likes' => (int)$row['likes'], 'dislikes' => (int)$row['dislikes']];
+        }
+        ob_end_clean();
+        echo json_encode(['status' => 'success', 'engagements' => $engagements], JSON_UNESCAPED_UNICODE);
+        exit;
+    }
+    $gameId = (int)($_GET['id'] ?? 0);
+    if ($method === 'POST') {
+        $input = json_decode(file_get_contents('php://input'), true) ?: $_POST;
+        $gameId = (int)($input['game_id'] ?? $gameId);
+        $action = strtolower(trim((string)($input['action'] ?? '')));
+        if ($gameId < 1) throw new Exception('Invalid or missing game ID.', 400);
+
+        $gameCheck = $db->prepare('SELECT id, public FROM games WHERE id = ? LIMIT 1');
+        $gameCheck->execute([$gameId]);
+        if (!$gameCheck->fetch(PDO::FETCH_ASSOC)) throw new Exception('Game entity not found.', 404);
+
+        if ($action === 'visit') {
+            $visitorUserId = (int)($_SESSION['user_id'] ?? $_SESSION['id'] ?? 0);
+            $visitStmt = $db->prepare('INSERT INTO game_visits (game_id, visitor_user_id) VALUES (?, ?)');
+            $visitStmt->execute([$gameId, $visitorUserId > 0 ? $visitorUserId : null]);
+        } elseif ($action === 'vote') {
+            $userId = (int)($_SESSION['user_id'] ?? $_SESSION['id'] ?? 0);
+            if ($userId < 1) throw new Exception('You must be logged in to vote.', 401);
+            $vote = strtolower(trim((string)($input['vote'] ?? '')));
+            if (!in_array($vote, ['like', 'dislike'], true)) throw new Exception('Invalid vote.', 400);
+            $voteStmt = $db->prepare("INSERT INTO game_votes (game_id, user_id, vote) VALUES (?, ?, ?)
+                ON DUPLICATE KEY UPDATE vote = VALUES(vote), updated_at = CURRENT_TIMESTAMP");
+            $voteStmt->execute([$gameId, $userId, $vote]);
+        } else {
+            throw new Exception('Invalid engagement action.', 400);
+        }
+    } elseif ($method !== 'GET') {
+        throw new Exception('Method Not Allowed.', 405);
+    }
+
+    if ($gameId < 1) throw new Exception('Invalid or missing game ID.', 400);
+    $countsStmt = $db->prepare("SELECT
+        (SELECT COUNT(*) FROM game_visits WHERE game_id = ?) AS visitors,
+        (SELECT COUNT(*) FROM game_votes WHERE game_id = ? AND vote = 'like') AS likes,
+        (SELECT COUNT(*) FROM game_votes WHERE game_id = ? AND vote = 'dislike') AS dislikes");
+    $countsStmt->execute([$gameId, $gameId, $gameId]);
+    $counts = $countsStmt->fetch(PDO::FETCH_ASSOC) ?: ['visitors' => 0, 'likes' => 0, 'dislikes' => 0];
+
+    $viewerVote = null;
+    $viewerId = (int)($_SESSION['user_id'] ?? $_SESSION['id'] ?? 0);
+    if ($viewerId > 0) {
+        $viewerVoteStmt = $db->prepare('SELECT vote FROM game_votes WHERE game_id = ? AND user_id = ? LIMIT 1');
+        $viewerVoteStmt->execute([$gameId, $viewerId]);
+        $viewerVote = $viewerVoteStmt->fetchColumn() ?: null;
+    }
+
+    ob_end_clean();
+    echo json_encode([
+        'status' => 'success',
+        'engagement' => [
+            'visitors' => (int)$counts['visitors'],
+            'likes' => (int)$counts['likes'],
+            'dislikes' => (int)$counts['dislikes'],
+            'viewer_vote' => $viewerVote
+        ]
+    ], JSON_UNESCAPED_UNICODE);
     exit;
 }
 
@@ -196,6 +313,12 @@ function handleCreate(PDO $db, string $method): void
     $sessionUserId = $_SESSION['id'] ?? $_SESSION['user_id'] ?? null;
     if (!$sessionUserId) {
         throw new Exception('Unauthorized: You must be logged in to create a game.', 401);
+    }
+
+    $dailyStmt = $db->prepare('SELECT COUNT(*) FROM games WHERE ownerUserId = ? AND created_at >= CURDATE()');
+    $dailyStmt->execute([(int)$sessionUserId]);
+    if ((int)$dailyStmt->fetchColumn() >= 1) {
+        throw new Exception('You can create only one game per day.', 429);
     }
 
     $data = json_decode(file_get_contents('php://input'), true) ?? [];
@@ -364,12 +487,18 @@ function handleSearch(PDO $db, string $method): void
     $offset = ($page - 1) * $limit;
 
     $searchTerm = '%' . $query . '%';
+    $activeOwnerFilter = "NOT EXISTS (
+        SELECT 1 FROM user_bans ban_filter
+        WHERE ban_filter.user_id = games.ownerUserId
+          AND ban_filter.is_active = 1
+          AND (ban_filter.expires_at IS NULL OR ban_filter.expires_at > NOW())
+    )";
 
     // Toplam eşleşen public oyun sayısını hesapla
     $totalStmt = $db->prepare("
         SELECT COUNT(*) 
         FROM games 
-        WHERE (public = 1 OR public = '1') 
+        WHERE (public = 1 OR public = '1') AND {$activeOwnerFilter}
           AND (name LIKE :q_name OR `desc` LIKE :q_desc)
     ");
     $totalStmt->execute([
@@ -383,7 +512,7 @@ function handleSearch(PDO $db, string $method): void
     $sql = "
         SELECT * 
         FROM games 
-        WHERE (public = 1 OR public = '1') 
+        WHERE (public = 1 OR public = '1') AND {$activeOwnerFilter}
           AND (name LIKE :q_name OR `desc` LIKE :q_desc)
         ORDER BY id DESC 
         LIMIT " . intval($limit) . " OFFSET " . intval($offset) . "

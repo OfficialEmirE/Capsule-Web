@@ -47,6 +47,11 @@ if (!$isAdmin) {
     exit('Forbidden: Admin access required.');
 }
 
+if (empty($_SESSION['admin_csrf'])) {
+    $_SESSION['admin_csrf'] = bin2hex(random_bytes(32));
+}
+$adminCsrf = (string)$_SESSION['admin_csrf'];
+
 $actionMessage = "";
 $actionStatus = "";
 
@@ -55,6 +60,10 @@ try {
 
     // --- HANDLE POST ACTIONS (BAN / UNBAN / WARNING / RESOLVE REPORT) ---
     if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+        if (!hash_equals($adminCsrf, (string)($_POST['admin_csrf'] ?? ''))) {
+            throw new RuntimeException('Invalid security token.', 403);
+        }
+
         if (isset($_POST['action'], $_POST['target_username'])) {
             $targetUser = trim($_POST['target_username']);
             $action = $_POST['action'];
@@ -80,6 +89,8 @@ try {
 
                     $insertBan = $db->prepare("INSERT INTO user_bans (user_id, reason, banned_at, expires_at, is_active) VALUES (?, ?, NOW(), ?, 1)");
                     $insertBan->execute([$userId, $reason, $expiresAt]);
+                    $removeAdmin = $db->prepare('UPDATE users SET is_admin = 0 WHERE id = ?');
+                    $removeAdmin->execute([$userId]);
 
                     $actionMessage = "User '{$targetUser}' has been successfully banned.";
                     $actionStatus = "success";
@@ -130,6 +141,44 @@ try {
                 $announcementStmt = $db->prepare('INSERT INTO announcements (message, created_by, expires_at) VALUES (?, ?, ?)');
                 $announcementStmt->execute([$announcementMessage, $currentUserId, $expiresAt]);
                 $actionMessage = 'Announcement published successfully.';
+                $actionStatus = 'success';
+            }
+        } elseif (isset($_POST['stop_announcement_id'])) {
+            $announcementId = (int)$_POST['stop_announcement_id'];
+            $latestAnnouncement = $db->query('SELECT id, expires_at FROM announcements ORDER BY id DESC LIMIT 1')->fetch(PDO::FETCH_ASSOC);
+            $isLatest = $latestAnnouncement && (int)$latestAnnouncement['id'] === $announcementId;
+            $isActive = $isLatest && (!$latestAnnouncement['expires_at'] || strtotime($latestAnnouncement['expires_at']) > time());
+
+            if (!$isActive) {
+                $actionMessage = 'Only the latest active announcement can be stopped.';
+                $actionStatus = 'error';
+            } else {
+                $stopAnnouncement = $db->prepare('UPDATE announcements SET expires_at = NOW() WHERE id = ? AND (expires_at IS NULL OR expires_at > NOW())');
+                $stopAnnouncement->execute([$announcementId]);
+                $actionMessage = "Announcement #{$announcementId} stopped.";
+                $actionStatus = "success";
+            }
+        } elseif (isset($_POST['delete_game_id'])) {
+            $gameId = (int)$_POST['delete_game_id'];
+            if ($gameId <= 0) {
+                $actionMessage = 'Invalid game ID.';
+                $actionStatus = 'error';
+            } else {
+                $deleteGame = $db->prepare('DELETE FROM games WHERE id = ?');
+                $deleteGame->execute([$gameId]);
+                $actionMessage = $deleteGame->rowCount() ? "Game #{$gameId} deleted." : 'Game not found.';
+                $actionStatus = $deleteGame->rowCount() ? 'success' : 'error';
+            }
+        } elseif (isset($_POST['delete_game_ids']) && is_array($_POST['delete_game_ids'])) {
+            $gameIds = array_values(array_unique(array_filter(array_map('intval', $_POST['delete_game_ids']))));
+            if (!$gameIds) {
+                $actionMessage = 'No games selected.';
+                $actionStatus = 'error';
+            } else {
+                $placeholders = implode(',', array_fill(0, count($gameIds), '?'));
+                $deleteGames = $db->prepare("DELETE FROM games WHERE id IN ({$placeholders})");
+                $deleteGames->execute($gameIds);
+                $actionMessage = $deleteGames->rowCount() . ' game(s) deleted.';
                 $actionStatus = 'success';
             }
         } elseif (isset($_POST['resolve_report_id'])) {
@@ -348,6 +397,7 @@ try {
                 <div class="tool-card">
                     <h3>Advanced Moderation Tool</h3>
                     <form method="POST" action="">
+                        <input type="hidden" name="admin_csrf" value="<?php echo htmlspecialchars($adminCsrf, ENT_QUOTES, 'UTF-8'); ?>">
                         <div class="form-group">
                             <label for="target_username">Target Username:</label>
                             <input type="text" id="target_username" name="target_username" class="form-control" placeholder="Username..." required>
@@ -391,6 +441,7 @@ try {
                 <div class="tool-card">
                     <h3>Publish Announcement</h3>
                     <form method="POST" action="">
+                        <input type="hidden" name="admin_csrf" value="<?php echo htmlspecialchars($adminCsrf, ENT_QUOTES, 'UTF-8'); ?>">
                         <input type="hidden" name="action" value="create_announcement">
                         <div class="form-group">
                             <label for="announcement_message">Announcement:</label>
@@ -549,22 +600,31 @@ try {
             <!-- TAB 4: OYUNLAR LİSTESİ -->
             <div id="games-list" class="tab-content">
                 <h3>Recent Games</h3>
+                <form id="bulkGameDeleteForm" method="POST" action="" onsubmit="return confirmBulkGameDelete();">
+                    <input type="hidden" name="admin_csrf" value="<?php echo htmlspecialchars($adminCsrf, ENT_QUOTES, 'UTF-8'); ?>">
+                    <div style="display:flex;justify-content:flex-end;margin-bottom:8px;">
+                        <button type="submit" class="btn-admin btn-danger">Delete Selected</button>
+                    </div>
+                </form>
                 <table class="activity-table">
                     <thead>
                         <tr>
+                            <th style="width:30px;"><input id="selectAllGames" type="checkbox" aria-label="Select all games"></th>
                             <th style="width: 60px;">Game ID</th>
                             <th>Game Title</th>
                             <th>Creator (Owner)</th>
                             <th>Max Players</th>
                             <th>Visibility</th>
+                            <th>Action</th>
                         </tr>
                     </thead>
                     <tbody>
                         <?php if (empty($gamesList)): ?>
-                            <tr><td colspan="5" style="text-align: center; color: #777;">No games found.</td></tr>
+                            <tr><td colspan="7" style="text-align: center; color: #777;">No games found.</td></tr>
                         <?php else: ?>
                             <?php foreach ($gamesList as $game): ?>
                                 <tr>
+                                    <td><input class="game-select-checkbox" type="checkbox" value="<?php echo (int)$game['id']; ?>" aria-label="Select game <?php echo (int)$game['id']; ?>"></td>
                                     <td>#<?php echo $game['id']; ?></td>
                                     <td>
                                         <strong>
@@ -581,6 +641,13 @@ try {
                                         <?php else: ?>
                                             <span style="color: #d9534f; font-weight: bold;">Private</span>
                                         <?php endif; ?>
+                                    </td>
+                                    <td>
+                                        <form method="POST" action="" style="display:inline;" onsubmit="return confirm('Delete this game permanently?');">
+                                            <input type="hidden" name="admin_csrf" value="<?php echo htmlspecialchars($adminCsrf, ENT_QUOTES, 'UTF-8'); ?>">
+                                            <input type="hidden" name="delete_game_id" value="<?php echo (int)$game['id']; ?>">
+                                            <button type="submit" class="btn-admin btn-danger" style="padding:2px 6px;font-size:10px;">Delete</button>
+                                        </form>
                                     </td>
                                 </tr>
                             <?php endforeach; ?>
@@ -637,6 +704,7 @@ try {
                                             <span class="badge badge-success">Resolved</span>
                                         <?php else: ?>
                                             <form method="POST" action="" style="display:inline;">
+                                                <input type="hidden" name="admin_csrf" value="<?php echo htmlspecialchars($adminCsrf, ENT_QUOTES, 'UTF-8'); ?>">
                                                 <input type="hidden" name="resolve_report_id" value="<?php echo $report['id']; ?>">
                                                 <button type="submit" class="btn-admin btn-success" style="padding: 2px 6px; font-size: 10px;">Mark Resolved</button>
                                             </form>
@@ -659,19 +727,31 @@ try {
                             <th>Posted By</th>
                             <th>Created</th>
                             <th>Expires</th>
+                            <th>Action</th>
                         </tr>
                     </thead>
                     <tbody>
                         <?php if (empty($announcementsList)): ?>
-                            <tr><td colspan="5" style="text-align:center;color:#777;">No announcements found.</td></tr>
+                            <tr><td colspan="6" style="text-align:center;color:#777;">No announcements found.</td></tr>
                         <?php else: ?>
-                            <?php foreach ($announcementsList as $announcement): ?>
+                            <?php foreach ($announcementsList as $announcementIndex => $announcement): ?>
                                 <tr>
                                     <td>#<?php echo (int)$announcement['id']; ?></td>
                                     <td style="white-space:pre-wrap;"><?php echo htmlspecialchars($announcement['message']); ?></td>
                                     <td><strong><?php echo htmlspecialchars($announcement['author_name'] ?? 'Unknown Admin'); ?></strong></td>
                                     <td><?php echo date('Y-m-d H:i', strtotime($announcement['created_at'])); ?></td>
                                     <td><?php echo $announcement['expires_at'] ? date('Y-m-d H:i', strtotime($announcement['expires_at'])) : 'Until replaced'; ?></td>
+                                    <td>
+                                        <?php if ($announcementIndex === 0 && (empty($announcement['expires_at']) || strtotime($announcement['expires_at']) > time())): ?>
+                                            <form method="POST" action="" style="display:inline;">
+                                                <input type="hidden" name="admin_csrf" value="<?php echo htmlspecialchars($adminCsrf, ENT_QUOTES, 'UTF-8'); ?>">
+                                                <input type="hidden" name="stop_announcement_id" value="<?php echo (int)$announcement['id']; ?>">
+                                                <button type="submit" class="btn-admin btn-warning" style="padding:2px 6px;font-size:10px;">Stop</button>
+                                            </form>
+                                        <?php else: ?>
+                                            <span class="badge badge-info">Stopped</span>
+                                        <?php endif; ?>
+                                    </td>
                                 </tr>
                             <?php endforeach; ?>
                         <?php endif; ?>
@@ -706,6 +786,34 @@ try {
             } else {
                 alert('Please enter a valid User ID');
             }
+        }
+
+        function confirmBulkGameDelete() {
+            var selected = Array.prototype.slice.call(document.querySelectorAll('.game-select-checkbox:checked'));
+            if (!selected.length) {
+                alert('Select at least one game.');
+                return false;
+            }
+            if (!confirm('Delete the selected games permanently?')) return false;
+
+            var form = document.getElementById('bulkGameDeleteForm');
+            selected.forEach(function (checkbox) {
+                var input = document.createElement('input');
+                input.type = 'hidden';
+                input.name = 'delete_game_ids[]';
+                input.value = checkbox.value;
+                form.appendChild(input);
+            });
+            return true;
+        }
+
+        var selectAllGames = document.getElementById('selectAllGames');
+        if (selectAllGames) {
+            selectAllGames.addEventListener('change', function () {
+                document.querySelectorAll('.game-select-checkbox').forEach(function (checkbox) {
+                    checkbox.checked = selectAllGames.checked;
+                });
+            });
         }
 
         fetch('/api/v1/admin/dashboard', { headers: { Accept: 'application/json' } })

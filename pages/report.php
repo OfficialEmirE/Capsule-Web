@@ -261,7 +261,6 @@ $targetUserId = $_GET['user_id'] ?? $_GET['user'] ?? null;
 
             updateLabels();
 
-            // report.php içerisindeki submit listener'ı
             reportForm.addEventListener('submit', function(e) {
                 e.preventDefault();
 
@@ -269,17 +268,16 @@ $targetUserId = $_GET['user_id'] ?? $_GET['user'] ?? null;
                 submitBtn.disabled = true;
                 submitBtn.textContent = "Submitting...";
 
-                // reportTypeSelect.value'nin 'user' veya 'game' olarak doğru seçildiğinden emin oluyoruz
                 var selectedType = reportTypeSelect.value.toLowerCase().trim();
 
                 var payload = {
-                    target_type: selectedType, // 'type' yerine tam olarak 'target_type' olmalı
+                    target_type: selectedType,
                     target_id: parseInt(targetIdInput.value, 10),
                     reason: document.getElementById('reason').value,
                     details: document.getElementById('details').value
                 };
 
-                fetch('/api/v1/reporter/create', { // Veya /api/v1/reporter/submit
+                fetch('/api/v1/reporter/create', {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json'

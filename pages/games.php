@@ -464,14 +464,12 @@
             });
     }
 
-    // İlk Durum Yüklemesi
     var initialParams = getParamsFromUrl();
     if (initialParams.query) {
         searchInput.value = initialParams.query;
     }
     loadGames(initialParams.page, initialParams.query);
 
-    // Arama Kutusu Event Listener (Debounced)
     searchInput.addEventListener('input', function() {
         clearTimeout(searchTimeout);
         searchTimeout = setTimeout(function() {

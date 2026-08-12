@@ -142,6 +142,17 @@ function handleAuthApi(string $action): void
             }
 
             try {
+                $registrationIp = $_SERVER['REMOTE_ADDR'] ?? '';
+                if ($registrationIp !== '') {
+                    $ipCountStmt = $db->prepare('SELECT COUNT(*) FROM users WHERE registration_ip = ?');
+                    $ipCountStmt->execute([$registrationIp]);
+                    if ((int)$ipCountStmt->fetchColumn() >= MAX_ACCOUNTS_PER_IP) {
+                        http_response_code(429);
+                        echo json_encode(["status" => "error", "message" => "The account limit for this network has been reached."], JSON_UNESCAPED_UNICODE);
+                        exit;
+                    }
+                }
+
                 if (!empty($email)) {
                     $stmt = $db->prepare("SELECT id FROM users WHERE username = ? OR email = ?");
                     $stmt->execute([$username, $email]);
@@ -161,8 +172,8 @@ function handleAuthApi(string $action): void
                 $random_color = $colors[array_rand($colors)];
 
                 $dbEmail = !empty($email) ? $email : null;
-                $insert = $db->prepare("INSERT INTO users (username, email, password_hash, avatar) VALUES (?, ?, ?, ?)");
-                $insert->execute([$username, $dbEmail, $password_hash, $random_color]);
+                $insert = $db->prepare("INSERT INTO users (username, email, password_hash, avatar, registration_ip) VALUES (?, ?, ?, ?, ?)");
+                $insert->execute([$username, $dbEmail, $password_hash, $random_color, $registrationIp !== '' ? $registrationIp : null]);
 
                 $newUserId = (int)$db->lastInsertId();
 

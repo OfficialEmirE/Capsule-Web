@@ -60,13 +60,14 @@ $gameOgImage = '/assets/images/capsuleTemplate.png';
         .game-body { padding:20px; }
         .game-toolbar { display:flex; justify-content:flex-end; align-items:center; gap:15px; margin-bottom:18px; }
         .game-actions { display:flex; align-items:center; gap:9px; }
-        .play-button { display:inline-block; background:#4a9b4a; border:1px solid #3d843d; color:#fff; padding:9px 24px; border-radius:3px; font-size:13px; font-weight:bold; }
+         .play-button { display:inline-block; background:#4a9b4a; border:1px solid #3d843d; color:#fff; padding:11px 28px; border-radius:3px; font-size:14px; font-weight:bold; cursor:pointer; font-family:inherit; }
         .play-button:hover { background:#398539; }
         .play-button-disabled { display:inline-block; background:#d7d7d7; border:1px solid #c4c4c4; color:#888; padding:9px 22px; border-radius:3px; font-size:13px; font-weight:bold; cursor:not-allowed; }
         .media-row { display:grid; grid-template-columns:minmax(0,1fr) 245px; gap:20px; align-items:start; }
-        .media-side { display:flex; flex-direction:column; gap:15px; }
-        .media-actions { border:1px solid var(--panel-border); border-radius:5px; padding:12px; background:#f8f8f8; display:flex; align-items:center; justify-content:center; }
-        .media-actions .play-button { width:100%; text-align:center; }
+        .media-side { display:flex; flex-direction:column; gap:5px; }
+         .media-actions { border:1px solid var(--panel-border); border-radius:5px; background:#f8f8f8; display:flex; align-items:center; justify-content:center; }
+         .media-actions { flex-direction:column; gap:10px; }
+         .media-actions .play-button { width:100%; text-align:center; }
         .media-actions .play-button-disabled { width:100%; box-sizing:border-box; text-align:center; }
         .game-layout { display:flex; flex-direction:column; gap:15px; }
         .game-section { border:1px solid var(--panel-border); border-radius:5px; padding:15px; }
@@ -77,8 +78,8 @@ $gameOgImage = '/assets/images/capsuleTemplate.png';
         .report-game-button { display:inline-flex; align-items:center; justify-content:center; width:28px; height:28px; flex:0 0 auto; border:1px solid #c0392b; background:#e74c3c; color:#fff; border-radius:3px; cursor:pointer; }
         .report-game-button:hover { background:#c0392b; }
         .report-game-button svg { width:16px; height:16px; stroke:#fff; }
-        .media-stage { position:relative; background:#15191d; border:1px solid #292d31; border-radius:4px; overflow:hidden; }
-        .media-image-frame { width:100%; aspect-ratio:16 / 9; background:#15191d; overflow:hidden; }
+            .media-stage { position:relative; background:#15191d; border:1px solid #292d31; border-radius:4px; overflow:hidden; }
+            .media-image-frame { width:100%; aspect-ratio:16 / 9; background:#15191d; overflow:hidden; }
         .media-stage-image { display:block; width:100%; height:100%; object-fit:cover; background:#15191d; }
         .media-arrow { position:absolute; z-index:2; top:50%; transform:translateY(-50%); width:34px; height:54px; border:0; background:rgba(0,0,0,.55); color:#fff; font-size:28px; line-height:1; cursor:pointer; opacity:.85; }
         .media-arrow:hover { background:rgba(0,0,0,.8); opacity:1; }
@@ -88,11 +89,22 @@ $gameOgImage = '/assets/images/capsuleTemplate.png';
         .media-video-frame { width:100%; aspect-ratio:16 / 9; background:#000; overflow:hidden; }
         .media-video-frame iframe, .media-video-frame video { display:block; width:100%; height:100%; border:0; background:#000; }
         .video-label { padding:7px 10px; color:#ddd; font-size:12px; }
-        .game-description { min-height:90px; color:#444; font-size:13px; line-height:1.6; white-space:pre-wrap; }
+         .game-description { min-height:90px; color:#444; font-size:13px; line-height:1.6; white-space:pre-wrap; }
+         .game-layout > .game-section:last-child { margin-top:10px; }
         .details { border:1px solid var(--panel-border); border-radius:5px; padding:15px; height:max-content; }
         .detail-row { display:flex; justify-content:space-between; align-items:center; gap:10px; padding:8px 0; border-bottom:1px solid #f0f0f0; color:var(--muted); font-size:12px; }
         .detail-row:last-child { border-bottom:0; }
-        .detail-row strong { color:var(--text); text-align:right; }
+         .detail-row strong { color:var(--text); text-align:right; }
+         .game-engagement { width:100%; }
+         .visitor-count { display:flex; justify-content:space-between; align-items:center; margin-bottom:8px; color:var(--muted); font-size:12px; }
+         .visitor-count strong { color:var(--text); }
+         .vote-actions { display:grid; grid-template-columns:1fr 1fr; gap:6px; }
+         .vote-button { display:flex; align-items:center; justify-content:center; gap:5px; border:1px solid #ccc; border-radius:3px; background:#fff; color:var(--text); padding:7px 4px; font-size:11px; cursor:pointer; }
+         .vote-button svg { width:15px; height:15px; fill:none; stroke:currentColor; stroke-width:2; stroke-linecap:round; stroke-linejoin:round; }
+         .vote-button.like { color:#348b48; border-color:#a9d5b3; }
+         .vote-button.like:hover, .vote-button.like.active { background:#e7f5ea; border-color:#348b48; }
+         .vote-button.dislike { color:#c0392b; border-color:#e5b0aa; }
+         .vote-button.dislike:hover, .vote-button.dislike.active { background:#fbeceb; border-color:#c0392b; }
         .status-public { color:#348b48 !important; }
         .game-loading,.game-error { padding:90px 10px; text-align:center; color:var(--muted); font-size:13px; }
         .game-error { color:#c0392b; }
@@ -173,7 +185,7 @@ $gameOgImage = '/assets/images/capsuleTemplate.png';
         }
 
         var playControl = isPublic && hasDwf
-            ? '<a class="play-button" href="/download?game_id=' + encodeURIComponent(game.id) + '">Play</a>'
+            ? '<button class="play-button" type="button" onclick="openCapsuleLauncher(' + Number(game.id) + ', false)">Play</button>'
             : '<span class="play-button-disabled" title="This game cannot be played without a DWF file">Unavailable</span>';
 
         shell.innerHTML = '<div class="game-body"><div class="game-layout"><div class="media-row"><section class="game-section"><div class="game-title-row"><h1>' + escapeHtml(game.name || 'Untitled Game') + '</h1>'
@@ -183,9 +195,12 @@ $gameOgImage = '/assets/images/capsuleTemplate.png';
             + '<div class="detail-row"><span>Players</span><strong>Max ' + escapeHtml(game.max_players || '0') + '</strong></div>'
             + '<div class="detail-row"><span>Visibility</span><strong class="' + (isPublic ? 'status-public' : '') + '">' + (isPublic ? 'Public' : 'Private') + '</strong></div>'
             + '<div class="detail-row"><span>Created</span><strong>' + escapeHtml(createdDate) + '</strong></div>'
-            + '<div class="detail-row"><span>Updated</span><strong>' + escapeHtml(updatedDate) + '</strong></div></aside>'
-            + '<div class="media-actions">' + playControl + '</div></div></div>'
-            + '<section class="game-section"><h2>About this game</h2><div class="game-description">' + escapeHtml(game.desc || 'The creator has not added a description yet.') + '</div></section></div></div>';
+             + '<div class="detail-row"><span>Updated</span><strong>' + escapeHtml(updatedDate) + '</strong></div>'
+             + '<div class="detail-row"><span>Visitors</span><strong id="gameVisitors">0</strong></div></aside>'
+             + '<div class="media-actions">' + playControl + '</div>'
+             + '<div class="game-section game-engagement"><div class="vote-actions"><button id="gameLike" class="vote-button like" type="button"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 10v10H4a2 2 0 0 1-2-2v-6a2 2 0 0 1 2-2h3Zm0 10h9.2a2 2 0 0 0 1.9-1.4l2.1-6A2 2 0 0 0 18.3 10H14l.7-4.1A2.5 2.5 0 0 0 12.2 3L7 10v10Z"></path></svg>Like <span id="gameLikes">0</span></button>'
+             + '<button id="gameDislike" class="vote-button dislike" type="button"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M17 14V4h3a2 2 0 0 1 2 2v6a2 2 0 0 1-2 2h-3ZM17 4H7.8a2 2 0 0 0-1.9 1.4l-2.1 6A2 2 0 0 0 5.7 14H10l-.7 4.1A2.5 2.5 0 0 0 11.8 21L17 14V4Z"></path></svg>Dislike <span id="gameDislikes">0</span></button></div></div></div></div></div>'
+            + '<section class="game-section" style="margin-top: 10px;"><h2>About this game</h2><div class="game-description">' + escapeHtml(game.desc || 'The creator has not added a description yet.') + '</div></section></div></div>';
 
         var currentMediaIndex = 0;
         var mediaContent = document.getElementById('mediaContent');
@@ -207,6 +222,8 @@ $gameOgImage = '/assets/images/capsuleTemplate.png';
             });
         }
 
+        loadEngagement(game.id);
+
         if (ownerId) {
             fetch('/api/v1/users/info?id=' + encodeURIComponent(ownerId))
                 .then(function (response) { return response.ok ? response.json() : null; })
@@ -226,6 +243,49 @@ $gameOgImage = '/assets/images/capsuleTemplate.png';
         var date = new Date(value);
         if (isNaN(date.getTime())) return 'Unknown';
         return date.toLocaleDateString('en-US', { year:'numeric', month:'short', day:'numeric' });
+    }
+
+    function loadEngagement(id) {
+        fetch('/api/v1/games/engagement?id=' + encodeURIComponent(id), { headers: { Accept: 'application/json' } })
+            .then(function (response) { return response.ok ? response.json() : null; })
+            .then(function (data) {
+                var engagement = data && data.status === 'success' ? data.engagement : null;
+                if (!engagement) return;
+                document.getElementById('gameVisitors').textContent = Number(engagement.visitors || 0).toLocaleString();
+                document.getElementById('gameLikes').textContent = Number(engagement.likes || 0).toLocaleString();
+                document.getElementById('gameDislikes').textContent = Number(engagement.dislikes || 0).toLocaleString();
+                var likeButton = document.getElementById('gameLike');
+                var dislikeButton = document.getElementById('gameDislike');
+                if (likeButton) likeButton.classList.toggle('active', engagement.viewer_vote === 'like');
+                if (dislikeButton) dislikeButton.classList.toggle('active', engagement.viewer_vote === 'dislike');
+                [likeButton, dislikeButton].forEach(function (button) {
+                    if (!button) return;
+                    button.onclick = function () {
+                        var vote = button === likeButton ? 'like' : 'dislike';
+                        fetch('/api/v1/games/engagement', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+                            body: JSON.stringify({ game_id: id, action: 'vote', vote: vote })
+                        }).then(function (response) {
+                            return response.json().then(function (result) {
+                                if (response.status === 401) {
+                                    window.location.href = '/auth/login';
+                                    return null;
+                                }
+                                if (!response.ok || result.status !== 'success') throw new Error(result.message || 'Vote failed.');
+                                return result;
+                            });
+                        }).then(function (result) {
+                            if (result && result.engagement) {
+                                document.getElementById('gameLikes').textContent = Number(result.engagement.likes || 0).toLocaleString();
+                                document.getElementById('gameDislikes').textContent = Number(result.engagement.dislikes || 0).toLocaleString();
+                                likeButton.classList.toggle('active', result.engagement.viewer_vote === 'like');
+                                dislikeButton.classList.toggle('active', result.engagement.viewer_vote === 'dislike');
+                            }
+                        }).catch(function () {});
+                    };
+                });
+            }).catch(function () {});
     }
 
     function toEmbedUrl(url) {

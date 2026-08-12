@@ -5,6 +5,7 @@ if (!defined('ROOT_PATH')) {
 if (session_status() === PHP_SESSION_NONE) {
     session_start();
 }
+
 if (!function_exists('api_db')) {
     require_once ROOT_PATH . 'api/config.php';
 }
@@ -54,6 +55,12 @@ try {
     }
 } catch (Throwable $e) {
     $activeAnnouncement = null;
+}
+
+if (defined('MAINTENANCE_MODE') && MAINTENANCE_MODE) {
+    $activeAnnouncement = [
+        'message' => defined('MAINTENANCE_MESSAGE') ? MAINTENANCE_MESSAGE : 'Capsule is currently under maintenance. Please try again soon.',
+    ];
 }
 
 $announcementMessageHtml = '';
@@ -185,11 +192,9 @@ async function handleLogout(event) {
         const result = await response.json();
         
         if (response.ok && result.status === 'success') {
-            // Başarılıysa sayfayı anasayfaya yönlendir veya yenile
             window.location.href = '/';
         } else {
             console.error('Logout failed:', result.message);
-            // Hata durumunda fallback olarak yine de sayfayı yenileyebiliriz
             window.location.reload();
         }
     } catch (error) {
@@ -198,3 +203,5 @@ async function handleLogout(event) {
     }
 }
 </script>
+
+<?php include ROOT_PATH . 'includes/loading.php'; ?>

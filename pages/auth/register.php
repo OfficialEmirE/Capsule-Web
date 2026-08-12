@@ -77,13 +77,12 @@
              * Handles the forms asynchronously and redirects dynamically based on 'next' parameter.
              */
             async function handleAuthSubmit(event, action) {
-                event.preventDefault(); // Sayfanın klasik form postuyla yenilenmesini engelliyoruz
+                event.preventDefault();
 
                 const form = event.target;
                 const formData = new FormData(form);
                 const data = {};
 
-                // Form inputlarını JSON objesine çeviriyoruz
                 formData.forEach((value, key) => {
                     if (action === 'login' && key === 'username') {
                         data['username_or_email'] = value.trim();
@@ -106,15 +105,12 @@
                     const result = await response.json();
 
                     if (response.ok && result.status === 'success') {
-                        // URL'deki "next" parametresini okuyoruz (örn: /auth/login?next=%2Favatar)
                         const urlParams = new URLSearchParams(window.location.search);
                         const nextUrl = urlParams.get('next');
 
-                        // Eğer "next" parametresi varsa ve güvenli bir yönlendirmeyse (harici domainleri engellemek için '/' ile başlamalı)
                         if (nextUrl && nextUrl.startsWith('/')) {
                             window.location.href = nextUrl;
                         } else {
-                            // "next" yoksa varsayılan olarak anasayfaya yönlendir
                             window.location.href = '/';
                         }
                     } else {

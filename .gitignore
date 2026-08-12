@@ -1,3 +1,5 @@
 vscode/
 # Hassas bilgileri içeren config dosyasını engelle
 api/config.php
+api/firebase-key.json
+cdn/users/

@@ -3,6 +3,7 @@
 declare(strict_types=1);
 
 define('ROOT_PATH', __DIR__ . '/');
+require_once ROOT_PATH . 'api/config.php';
 
 /*
 |--------------------------------------------------------------------------
@@ -62,7 +63,7 @@ if (session_status() === PHP_SESSION_NONE) {
 |--------------------------------------------------------------------------
 */
 
-$is_maintenance_active = false;
+$is_maintenance_active = defined('MAINTENANCE_MODE') && MAINTENANCE_MODE;
 
 if ($is_maintenance_active) {
 
@@ -81,11 +82,25 @@ if ($is_maintenance_active) {
     ];
 
     $is_admin = !empty($_SESSION['is_admin']);
+    $maintenanceUnlocked = !empty($_SESSION['maintenance_unlocked']);
+
+    if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['maintenance_password'])) {
+        $password = (string)$_POST['maintenance_password'];
+        if (MAINTENANCE_PASSWORD_HASH !== '' && password_verify($password, MAINTENANCE_PASSWORD_HASH)) {
+            session_start();
+            $_SESSION['maintenance_unlocked'] = true;
+            session_write_close();
+            header('Location: ' . ($_SERVER['REQUEST_URI'] ?? '/'), true, 303);
+            exit;
+        }
+        $maintenanceUnlocked = false;
+    }
 
     if (
         !isset($maintenance_whitelist[$uri]) &&
         !isset($allowed_ips[$user_ip]) &&
-        !$is_admin
+        !$is_admin &&
+        !$maintenanceUnlocked
     ) {
         http_response_code(503);
         header('Retry-After: 3600');
@@ -99,11 +114,12 @@ if ($is_maintenance_active) {
 
         $errorCode = 503;
 
-        if (is_file(ROOT_PATH . 'error.php')) {
-            require ROOT_PATH . 'error.php';
-        } else {
-            json_error(503, 'Service Unavailable');
-        }
+        header('Content-Type: text/html; charset=utf-8');
+        echo '<!doctype html><html><head><meta charset="utf-8"><title>Maintenance</title><style>body{margin:0;font-family:Arial,sans-serif;background:#f4f4f4;color:#333}.maintenance-page{max-width:760px;margin:70px auto;padding:0 16px}.announcement{margin-bottom:20px;padding:12px 16px;text-align:center;background:#fff3cd;border:1px solid #ffe69c;border-radius:4px;font-weight:bold;color:#664d03}.maintenance-card{padding:28px;background:#fff;border:1px solid #ddd;border-radius:6px;text-align:center}</style></head><body><main class="maintenance-page">';
+        echo '<div class="announcement">' . htmlspecialchars(MAINTENANCE_MESSAGE, ENT_QUOTES, 'UTF-8') . '</div>';
+        echo '<div class="maintenance-card"><h1>Site under maintenance</h1><p>Enter the maintenance password to continue.</p>';
+        echo '<script>(function(){var password=window.prompt("Maintenance password:");if(password===null){return;}var form=new FormData();form.append("maintenance_password",password);fetch(window.location.href,{method:"POST",body:form}).then(function(){window.location.reload();});})();</script>';
+        echo '</div></main></body></html>';
 
         exit;
     }

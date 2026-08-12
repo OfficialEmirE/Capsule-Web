@@ -465,7 +465,6 @@ if ($existingUser['is_banned'] !== null) {
                             var reportBtn = document.getElementById('reportUserBtn');
                             if (reportBtn) {
                                 reportBtn.style.display = 'flex';
-                                // REPORT YÖNLENDİRMESİ
                                 reportBtn.onclick = function() {
                                     window.location.href = "/report?user_id=" + encodeURIComponent(user.id) + "&username=" + encodeURIComponent(user.username);
                                 };
@@ -705,7 +704,6 @@ if ($existingUser['is_banned'] !== null) {
             }
 
             function showErrorPage() {
-                // error handling
             }
         })();
         </script>

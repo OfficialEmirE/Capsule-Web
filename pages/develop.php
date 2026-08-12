@@ -15,10 +15,13 @@ $developerGames = [];
 
 try {
     $developerDb = api_db();
+    
+    // Tablonuzdaki sütun isimlerini kontrol edin. desc reserved keyword olduğu için backtick (`) içindedir.
     $developerStmt = $developerDb->prepare('SELECT id, name, `desc`, max_players, public, thumbnail_urls, created_at, updated_at FROM games WHERE ownerUserId = ? ORDER BY id DESC');
     $developerStmt->execute([$developerId]);
     $developerGames = $developerStmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
 } catch (Throwable $e) {
+    // Hata durumunda boş dönmek yerine loglayabilirsiniz: error_log($e->getMessage());
     $developerGames = [];
 }
 ?>
@@ -50,6 +53,8 @@ try {
         .develop-button:hover { background:var(--button-primary-hover); }
         .develop-button.secondary { background:#666; }
         .develop-button.green { background:#4a9b4a; }
+        .develop-button.open-studio-game, #createOpenStudio { background:#8e44ad; }
+        .develop-button.open-studio-game:hover, #createOpenStudio:hover { background:#71368a; }
         .develop-button:disabled { opacity:.6; cursor:wait; }
         .game-editor { border:1px solid var(--panel-border); border-radius:5px; padding:13px; margin-bottom:10px; }
         .game-editor:last-child { margin-bottom:0; }
@@ -70,10 +75,15 @@ try {
         .game-editor:not(.editing) .editor-fields, .game-editor:not(.editing) .game-meta { display:none; }
         .game-editor:not(.editing) .save-game { display:none; }
         .game-editor:not(.editing) .cancel-game { display:none; }
+        .game-editor:not(.editing) .open-studio-game { display:none; }
         #createGamePanel { margin-top:-5px; }
         .editor-fields { display:grid; grid-template-columns:1fr 150px 110px; gap:10px; }
         .editor-fields .wide { grid-column:1 / -1; }
         .game-meta { margin-top:8px; color:var(--muted); font-size:11px; }
+        .game-engagement-meta { display:flex; gap:12px; margin-top:6px; color:var(--muted); font-size:11px; }
+        .game-engagement-meta strong { color:var(--text); }
+        .game-like-count { color:#348b48 !important; }
+        .game-dislike-count { color:#c0392b !important; }
         .empty-games { padding:30px 10px; text-align:center; color:var(--muted); font-size:12px; }
         .develop-message { display:none; padding:9px; margin-bottom:12px; border-radius:4px; font-size:12px; font-weight:bold; }
         .develop-message.success { display:block; background:#dff0d8; color:#3c763d; }
@@ -97,7 +107,10 @@ try {
         <section id="createGamePanel" class="develop-panel" style="display:none;">
             <div class="panel-heading">
                 <h2>Create Game</h2>
-                <button id="backToMyGames" class="develop-button secondary" type="button">My Games</button>
+                <div class="game-editor-actions">
+                    <button id="createOpenStudio" class="develop-button secondary" type="button">Open Studio</button>
+                    <button id="backToMyGames" class="develop-button secondary" type="button">My Games</button>
+                </div>
             </div>
             <form id="createGameForm">
                 <div class="form-group">
@@ -140,38 +153,40 @@ try {
                 <button id="showCreateGame" class="develop-button green" type="button">Create Game</button>
             </div>
             <div id="myGames">
-                <?php if (!$developerGames): ?>
+                <?php if (empty($developerGames)): ?>
                     <div class="empty-games">You have not created any games yet.</div>
                 <?php else: ?>
                     <?php foreach ($developerGames as $game): ?>
                         <?php
                         $gameMedia = json_decode((string)($game['thumbnail_urls'] ?? ''), true);
                         $videoAssetId = 0;
-                        if (is_array($gameMedia)) {
-                            foreach ($gameMedia as $gameAsset) {
-                                if (is_array($gameAsset) && strtolower((string)($gameAsset['type'] ?? '')) === 'video' && (int)($gameAsset['id'] ?? 0) > 0) {
-                                    $videoAssetId = (int)$gameAsset['id'];
-                                    break;
-                                }
-                            }
-                        }
+                        $dwfAssetId = 0;
                         $imageAssetId = 0;
                         $imageAssetIds = [];
+
                         if (is_array($gameMedia)) {
                             foreach ($gameMedia as $gameAsset) {
-                                if (is_array($gameAsset) && strtolower((string)($gameAsset['type'] ?? '')) === 'image' && (int)($gameAsset['id'] ?? 0) > 0) {
-                                    $assetId = (int)$gameAsset['id'];
+                                if (!is_array($gameAsset)) continue;
+                                $type = strtolower((string)($gameAsset['type'] ?? ''));
+                                $assetId = (int)($gameAsset['id'] ?? 0);
+
+                                if ($type === 'video' && !$videoAssetId) {
+                                    $videoAssetId = $assetId;
+                                } elseif ($type === 'dwf' && !$dwfAssetId) {
+                                    $dwfAssetId = $assetId;
+                                } elseif ($type === 'image' && $assetId > 0) {
                                     if (!$imageAssetId) $imageAssetId = $assetId;
                                     $imageAssetIds[] = $assetId;
                                 }
                             }
                         }
                         ?>
-                        <form class="game-editor" data-game-id="<?php echo (int)$game['id']; ?>" data-image-assets="<?php echo htmlspecialchars(json_encode($imageAssetIds, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES), ENT_QUOTES, 'UTF-8'); ?>" data-existing-media="<?php echo htmlspecialchars(json_encode(is_array($gameMedia) ? $gameMedia : [], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES), ENT_QUOTES, 'UTF-8'); ?>">
+                        <form class="game-editor" data-game-id="<?php echo (int)$game['id']; ?>" data-dwf-id="<?php echo $dwfAssetId; ?>" data-image-assets="<?php echo htmlspecialchars(json_encode($imageAssetIds, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES), ENT_QUOTES, 'UTF-8'); ?>" data-existing-media="<?php echo htmlspecialchars(json_encode(is_array($gameMedia) ? $gameMedia : [], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES), ENT_QUOTES, 'UTF-8'); ?>">
                             <div class="game-editor-heading">
-                                <h3><img class="game-editor-thumb" data-asset-id="<?php echo $imageAssetId; ?>" src="/assets/images/capsuleTemplate.png" alt=""><span><?php echo htmlspecialchars($game['name']); ?></span></h3>
+                                <h3><img class="game-editor-thumb" data-asset-id="<?php echo $imageAssetId; ?>" src="/assets/images/capsuleTemplate.png" alt=""><span><?php echo htmlspecialchars($game['name'] ?? ''); ?></span></h3>
                                 <div class="game-editor-actions">
                                     <button class="develop-button secondary edit-game" type="button">Edit</button>
+                                    <button class="develop-button open-studio-game" type="button" style="<?php echo $dwfAssetId ? '' : 'display:none;'; ?>">Open Studio</button>
                                     <button class="develop-button secondary cancel-game" type="button">Cancel</button>
                                     <button class="develop-button green save-game" type="submit">Save</button>
                                 </div>
@@ -179,17 +194,17 @@ try {
                             <div class="editor-fields">
                                 <div class="form-group">
                                     <label>Name</label>
-                                    <input class="develop-input game-name" maxlength="255" value="<?php echo htmlspecialchars($game['name']); ?>" required>
+                                    <input class="develop-input game-name" maxlength="255" value="<?php echo htmlspecialchars($game['name'] ?? ''); ?>" required>
                                 </div>
                                 <div class="form-group">
                                     <label>Max Players</label>
-                                    <input class="develop-input game-players" type="number" min="1" max="1000" value="<?php echo (int)$game['max_players']; ?>" readonly title="Max Players editing is temporarily disabled.">
+                                    <input class="develop-input game-players" type="number" min="1" max="1000" value="<?php echo (int)($game['max_players'] ?? 12); ?>" readonly title="Max Players editing is temporarily disabled.">
                                 </div>
                                 <div class="form-group">
                                     <label>Visibility</label>
                                     <select class="develop-select game-public">
-                                        <option value="1" <?php echo (int)$game['public'] === 1 ? 'selected' : ''; ?>>Public</option>
-                                        <option value="0" <?php echo (int)$game['public'] === 0 ? 'selected' : ''; ?>>Private</option>
+                                        <option value="1" <?php echo (int)($game['public'] ?? 1) === 1 ? 'selected' : ''; ?>>Public</option>
+                                        <option value="0" <?php echo (int)($game['public'] ?? 1) === 0 ? 'selected' : ''; ?>>Private</option>
                                     </select>
                                 </div>
                                 <div class="form-group wide">
@@ -217,7 +232,8 @@ try {
                                     <small style="color:#777;">Leave empty to remove the current video.</small>
                                 </div>
                             </div>
-                            <div class="game-meta">Created: <?php echo htmlspecialchars((string)$game['created_at']); ?> · Updated: <?php echo htmlspecialchars((string)$game['updated_at']); ?></div>
+                            <div class="game-meta">Created: <?php echo htmlspecialchars((string)($game['created_at'] ?? '')); ?> · Updated: <?php echo htmlspecialchars((string)($game['updated_at'] ?? '')); ?></div>
+                            <div class="game-engagement-meta"><span>Likes: <strong class="game-like-count">0</strong></span><span>Dislikes: <strong class="game-dislike-count">0</strong></span></div>
                         </form>
                     <?php endforeach; ?>
                 <?php endif; ?>
@@ -304,16 +320,43 @@ try {
     var myGamesPanel = document.getElementById('myGamesPanel');
     var showCreateButton = document.getElementById('showCreateGame');
     var backToMyGames = document.getElementById('backToMyGames');
+
     function showPanel(panel) {
         var showCreate = panel === createPanel;
         createPanel.style.display = showCreate ? 'block' : 'none';
         myGamesPanel.style.display = showCreate ? 'none' : 'block';
     }
+
     if (showCreateButton && createPanel && myGamesPanel) {
         showCreateButton.addEventListener('click', function () { showPanel(createPanel); });
     }
     if (backToMyGames && createPanel && myGamesPanel) {
         backToMyGames.addEventListener('click', function () { showPanel(myGamesPanel); });
+    }
+    var createOpenStudio = document.getElementById('createOpenStudio');
+    if (createOpenStudio) {
+        createOpenStudio.addEventListener('click', function () { 
+            if (typeof openCapsuleLauncher === 'function') openCapsuleLauncher(0, true); 
+        });
+    }
+
+    var engagementIds = Array.from(document.querySelectorAll('.game-editor[data-game-id]')).map(function (form) {
+        return form.getAttribute('data-game-id');
+    }).filter(Boolean);
+    if (engagementIds.length) {
+        fetch('/api/v1/games/engagement?ids=' + encodeURIComponent(engagementIds.join(',')), { headers: { Accept: 'application/json' } })
+            .then(function (response) { return response.ok ? response.json() : null; })
+            .then(function (data) {
+                var all = data && data.status === 'success' ? data.engagements : null;
+                if (!all) return;
+                document.querySelectorAll('.game-editor[data-game-id]').forEach(function (form) {
+                    var counts = all[String(form.getAttribute('data-game-id'))] || { likes: 0, dislikes: 0 };
+                    var like = form.querySelector('.game-like-count');
+                    var dislike = form.querySelector('.game-dislike-count');
+                    if (like) like.textContent = Number(counts.likes || 0).toLocaleString();
+                    if (dislike) dislike.textContent = Number(counts.dislikes || 0).toLocaleString();
+                });
+            }).catch(function () {});
     }
 
     document.querySelectorAll('.game-video[data-asset-id]').forEach(function (input) {
@@ -440,6 +483,8 @@ try {
     document.querySelectorAll('.game-editor').forEach(function (form) {
         var editButton = form.querySelector('.edit-game');
         var cancelButton = form.querySelector('.cancel-game');
+        var openStudioButton = form.querySelector('.open-studio-game');
+
         if (editButton) {
             editButton.addEventListener('click', function () {
                 form.dataset.originalName = form.querySelector('.game-name').value;
@@ -460,6 +505,13 @@ try {
                 form.classList.remove('editing');
                 cancelButton.style.display = 'none';
                 editButton.style.display = '';
+            });
+        }
+        if (openStudioButton) {
+            openStudioButton.addEventListener('click', function () {
+                if (typeof openCapsuleLauncher === 'function') {
+                    openCapsuleLauncher(form.getAttribute('data-game-id'), true);
+                }
             });
         }
 
@@ -503,7 +555,8 @@ try {
                 };
                 return sendGame('/api/v1/games/update', payload, button);
             }).then(function () {
-                showMessage('Game updated successfully.', 'success');
+                showMessage('Game updated successfully. Reloading...', 'success');
+                setTimeout(function () { window.location.reload(); }, 500);
             }).catch(function (error) {
                 showMessage(error.message, 'error');
             });
