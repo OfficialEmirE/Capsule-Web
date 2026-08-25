@@ -181,8 +181,11 @@ function handleInfo(PDO $db, string $method): void
 {
     if ($method !== 'GET') throw new Exception('Method Not Allowed. Only GET requests are supported.', 405);
 
-    $gameId = isset($_GET['id']) ? (int)$_GET['id'] : 0;
-    if ($gameId <= 0) throw new Exception('Invalid or missing game ID.', 400);
+    $rawGameId = $_GET['id'] ?? null;
+    if ($rawGameId === null || !is_numeric($rawGameId) || (int)$rawGameId < 0) {
+        throw new Exception('Invalid or missing game ID.', 400);
+    }
+    $gameId = (int)$rawGameId;
 
     $stmt = $db->prepare("SELECT * FROM games WHERE id = ? LIMIT 1");
     $stmt->execute([$gameId]);
@@ -229,7 +232,7 @@ function handleEngagement(PDO $db, string $method): void
 {
     ensureEngagementTables($db);
     if ($method === 'GET' && isset($_GET['ids'])) {
-        $ids = array_values(array_unique(array_filter(array_map('intval', explode(',', (string)$_GET['ids'])), static fn (int $id): bool => $id > 0)));
+        $ids = array_values(array_unique(array_filter(array_map('intval', explode(',', (string)$_GET['ids'])), static fn (int $id): bool => $id >= 0)));
         if (!$ids) throw new Exception('Invalid or missing game IDs.', 400);
         $placeholders = implode(',', array_fill(0, count($ids), '?'));
         $stmt = $db->prepare("SELECT game_id, SUM(vote = 'like') AS likes, SUM(vote = 'dislike') AS dislikes FROM game_votes WHERE game_id IN ({$placeholders}) GROUP BY game_id");
@@ -243,12 +246,13 @@ function handleEngagement(PDO $db, string $method): void
         echo json_encode(['status' => 'success', 'engagements' => $engagements], JSON_UNESCAPED_UNICODE);
         exit;
     }
-    $gameId = (int)($_GET['id'] ?? 0);
+    $rawGameId = $_GET['id'] ?? null;
+    $gameId = $rawGameId !== null && is_numeric($rawGameId) ? (int)$rawGameId : -1;
     if ($method === 'POST') {
         $input = json_decode(file_get_contents('php://input'), true) ?: $_POST;
-        $gameId = (int)($input['game_id'] ?? $gameId);
+        if (array_key_exists('game_id', $input)) $gameId = (int)$input['game_id'];
         $action = strtolower(trim((string)($input['action'] ?? '')));
-        if ($gameId < 1) throw new Exception('Invalid or missing game ID.', 400);
+        if ($gameId < 0) throw new Exception('Invalid or missing game ID.', 400);
 
         $gameCheck = $db->prepare('SELECT id, public FROM games WHERE id = ? LIMIT 1');
         $gameCheck->execute([$gameId]);
@@ -273,7 +277,7 @@ function handleEngagement(PDO $db, string $method): void
         throw new Exception('Method Not Allowed.', 405);
     }
 
-    if ($gameId < 1) throw new Exception('Invalid or missing game ID.', 400);
+    if ($gameId < 0) throw new Exception('Invalid or missing game ID.', 400);
     $countsStmt = $db->prepare("SELECT
         (SELECT COUNT(*) FROM game_visits WHERE game_id = ?) AS visitors,
         (SELECT COUNT(*) FROM game_votes WHERE game_id = ? AND vote = 'like') AS likes,
@@ -380,9 +384,13 @@ function handleUpdate(PDO $db, string $method): void
         throw new Exception('Unauthorized: You must be logged in to update a game.', 401);
     }
 
-    $data = json_decode(file_get_contents('php://input'), true) ?? [];
-    
-    if (!isset($data['id']) || empty($data['id'])) {
+    $rawInput = file_get_contents('php://input');
+    $data = json_decode($rawInput, true);
+    if (!is_array($data)) $data = $_POST;
+    if (!isset($data['id']) && isset($data['game_id'])) $data['id'] = $data['game_id'];
+    if (!isset($data['id']) && isset($_GET['id'])) $data['id'] = $_GET['id'];
+
+    if (!isset($data['id']) || !is_numeric($data['id']) || (int)$data['id'] < 1) {
         throw new Exception('Validation Failed: Target instance id property is required.', 400);
     }
 

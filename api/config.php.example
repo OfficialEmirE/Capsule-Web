@@ -1,0 +1,124 @@
+<?php
+declare(strict_types=1);
+
+if (!defined('ROOT_PATH')) {
+    define('ROOT_PATH', dirname(__DIR__) . DIRECTORY_SEPARATOR);
+}
+
+if (session_status() === PHP_SESSION_NONE) {
+    session_start();
+}
+
+error_reporting(E_ALL);
+ini_set('display_errors', '0');
+
+// Mail Servers
+define('MAIL_HOST', 'example.com'); // mail host
+define('MAIL_USERNAME', 'noreply@example.com'); // mail username
+define('MAIL_PASSWORD', 'password here'); // mail password
+define('MAIL_FROM', 'noreply@example.com'); // mail from address
+
+// stupid firebase
+define('FIREBASE_PROJECT_ID', getenv('CAPSULE_FIREBASE_PROJECT_ID') ?: 'project id'); // firebase project id
+define('FIREBASE_BUCKET_NAME', getenv('CAPSULE_FIREBASE_BUCKET') ?: FIREBASE_PROJECT_ID . '.firebasestorage.app'); // dont change
+define('FIREBASE_KEY_PATH', getenv('CAPSULE_FIREBASE_KEY') ?: ROOT_PATH . 'api/firebase-key.json'); // path to firebase service account key
+define('SERVICE_ACCOUNT_FILE', FIREBASE_KEY_PATH);
+// Temporary storage backend. (dont change :))
+define('ASSET_STORAGE_DRIVER', getenv('CAPSULE_ASSET_STORAGE') ?: 'local');
+// ip to max accounts limit
+define('MAX_ACCOUNTS_PER_IP', max(1, (int)(getenv('CAPSULE_MAX_ACCOUNTS_PER_IP') ?: 2)));
+
+// Maintenance mode
+define('MAINTENANCE_MODE', false); // true to enable maintenance mode, false to disable
+define('MAINTENANCE_PASSWORD_HASH', '$2y$10$u/QKrsmWy8.0SRCjzcFtReKH0zwWB63zzPoFpCq23Y0nOCFUkg5lK'); // password hash for maintenance mode (bcrypt) (generate to command: php -r "echo password_hash('yourpassword', PASSWORD_BCRYPT);")
+define('MAINTENANCE_MESSAGE', getenv('CAPSULE_MAINTENANCE_MESSAGE') ?: '<HIDDEN>'); // maintenance message to show when maintenance mode is enabled
+
+// Firebase Storage Signed URL Generation
+function getFirebaseSignedUrl(string $objectPath, int $ttlSeconds = 3600): string
+{
+    // JSON anahtar dosyası yoksa fallback olarak public URL dön
+    if (!file_exists(FIREBASE_KEY_PATH)) {
+        throw new RuntimeException('Firebase service account key was not found.');
+    }
+
+    $saData = json_decode(file_get_contents(FIREBASE_KEY_PATH), true);
+    if (!$saData || !isset($saData['client_email'], $saData['private_key'])) {
+        // JSON okunamaz veya hatalıysa fallback
+        throw new RuntimeException('Invalid Firebase service account key.');
+    }
+
+    $clientEmail = $saData['client_email'];
+    $privateKey  = $saData['private_key'];
+
+    // URL Encoding (V4 REST standartlarına uygun)
+    $encodedPath = implode('/', array_map('rawurlencode', explode('/', $objectPath)));
+    
+    $now = time();
+
+    // Google V4 Formatındaki Tarihler
+    $datestamp = gmdate('Ymd', $now);
+    $timestamp = gmdate('Ymd\THis\Z', $now);
+
+    $credentialScope = "{$datestamp}/auto/storage/goog4_request";
+    $canonicalHeaders = "host:storage.googleapis.com\n";
+    $signedHeaders = "host";
+
+    // Canonical Request Yapılandırması
+    $canonicalRequest = "GET\n"
+        . "/{$encodedPath}\n"
+        . "X-Goog-Algorithm=GOOG4-RSA-SHA256&"
+        . "X-Goog-Credential=" . rawurlencode("{$clientEmail}/{$credentialScope}") . "&"
+        . "X-Goog-Date={$timestamp}&"
+        . "X-Goog-Expires={$ttlSeconds}&"
+        . "X-Goog-SignedHeaders={$signedHeaders}\n"
+        . "{$canonicalHeaders}\n"
+        . "{$signedHeaders}\n"
+        . "UNSIGNED-PAYLOAD";
+
+    // String to Sign
+    $stringToSign = "GOOG4-RSA-SHA256\n"
+        . "{$timestamp}\n"
+        . "{$credentialScope}\n"
+        . hash('sha256', $canonicalRequest);
+
+    // PHP'nin yerleşik OpenSSL kütüphanesi ile imzalanması
+    $binarySignature = '';
+    $success = openssl_sign($stringToSign, $binarySignature, $privateKey, 'SHA256');
+
+    if (!$success) throw new RuntimeException('Unable to sign Firebase Storage URL.');
+
+    $signatureHex = bin2hex($binarySignature);
+
+    // Tam İmzalı URL
+    return "https://storage.googleapis.com/" . FIREBASE_BUCKET_NAME . "/{$encodedPath}?"
+        . "X-Goog-Algorithm=GOOG4-RSA-SHA256&"
+        . "X-Goog-Credential=" . rawurlencode("{$clientEmail}/{$credentialScope}") . "&"
+        . "X-Goog-Date={$timestamp}&"
+        . "X-Goog-Expires={$ttlSeconds}&"
+        . "X-Goog-SignedHeaders={$signedHeaders}&"
+        . "X-Goog-Signature={$signatureHex}";
+}
+
+// database connection function
+function api_db(): PDO
+{
+    $host    = 'sql.example.com'; // database host
+    $dbName  = 'your_db'; // database name
+    $dbUser  = 'admin'; // database username
+    $dbPass  = '12345'; // database password
+    $charset = 'utf8mb4'; // database charset
+
+    $dsn = "mysql:host=$host;dbname=$dbName;charset=$charset";
+    
+    $options = [
+        PDO::ATTR_ERRMODE            => PDO::ERRMODE_EXCEPTION,
+        PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
+        PDO::ATTR_EMULATE_PREPARES   => false,
+    ];
+
+    try {
+        return new PDO($dsn, $dbUser, $dbPass, $options);
+    } catch (PDOException $e) {
+        throw new Exception('Database Connection Failed: ' . $e->getMessage(), 500);
+    }
+}

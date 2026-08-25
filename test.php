@@ -1,4 +1,5 @@
 <?php
+// test.php for testing fiture + password reset for owners
 declare(strict_types=1);
 
 session_start();

@@ -59,7 +59,7 @@ if (session_status() === PHP_SESSION_NONE) {
 
 /*
 |--------------------------------------------------------------------------
-| 4. MAINTENANCE
+| 4. MAINTENANCE (CHANGE HERE)
 |--------------------------------------------------------------------------
 */
 
@@ -115,13 +115,20 @@ if ($is_maintenance_active) {
         $errorCode = 503;
 
         header('Content-Type: text/html; charset=utf-8');
-        echo '<!doctype html><html><head><meta charset="utf-8"><title>Maintenance</title><style>body{margin:0;font-family:Arial,sans-serif;background:#f4f4f4;color:#333}.maintenance-page{max-width:760px;margin:70px auto;padding:0 16px}.announcement{margin-bottom:20px;padding:12px 16px;text-align:center;background:#fff3cd;border:1px solid #ffe69c;border-radius:4px;font-weight:bold;color:#664d03}.maintenance-card{padding:28px;background:#fff;border:1px solid #ddd;border-radius:6px;text-align:center}</style></head><body><main class="maintenance-page">';
-        echo '<div class="announcement">' . htmlspecialchars(MAINTENANCE_MESSAGE, ENT_QUOTES, 'UTF-8') . '</div>';
-        echo '<div class="maintenance-card"><h1>Site under maintenance</h1><p>Enter the maintenance password to continue.</p>';
-        echo '<script>(function(){var password=window.prompt("Maintenance password:");if(password===null){return;}var form=new FormData();form.append("maintenance_password",password);fetch(window.location.href,{method:"POST",body:form}).then(function(){window.location.reload();});})();</script>';
+        echo '<!doctype html><html><head><meta charset="utf-8"><title>Maintenance</title></head><body><main>';
+        echo '<div>' . htmlspecialchars(MAINTENANCE_MESSAGE, ENT_QUOTES, 'UTF-8') . '</div>';
+        echo '<div><h1>Capsule Closed.</h1><p>Thank you for creating an account and playing on our platform. We hope to see you again someday. -EmirE</p>';
+        
+        // CSS içermeyen sade buton
+        echo '<button onclick="askPassword()">Enter Password</button>';
+        
+        // Sadece buton tetiklediğinde çalışan JavaScript fonksiyonu
+        echo '<script>function askPassword(){var password=window.prompt("Password:");if(password===null||password===""){return;}var form=new FormData();form.append("maintenance_password",password);fetch(window.location.href,{method:"POST",body:form}).then(function(){window.location.reload();});}</script>';
+        
         echo '</div></main></body></html>';
 
         exit;
+
     }
 }
 

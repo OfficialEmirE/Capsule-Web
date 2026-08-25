@@ -553,7 +553,7 @@ try {
                     public: Number(form.querySelector('.game-public').value),
                     thumbnail_urls: media
                 };
-                return sendGame('/api/v1/games/update', payload, button);
+                return sendGame('/api/v1/games/update?id=' + encodeURIComponent(payload.id), payload, button);
             }).then(function () {
                 showMessage('Game updated successfully. Reloading...', 'success');
                 setTimeout(function () { window.location.reload(); }, 500);
